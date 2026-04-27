@@ -6,8 +6,76 @@ let chartVentas = null;
 let clienteEditandoId = null;
 let productoEditandoId = null;
 
-function inicializarApp() {
-    cargarDatos();
+const SHEETBEST_API = "https://api.sheetbest.com/sheets/374a3909-caf8-4232-8572-da1c862226ec";
+
+// Helpers Sheet.best
+async function sbGet(tab) {
+    const res = await fetch(`${SHEETBEST_API}/tabs/${tab}`);
+    if (!res.ok) throw new Error(`Error GET ${tab}: ${res.status}`);
+    return await res.json();
+}
+async function sbPost(tab, row) {
+    const res = await fetch(`${SHEETBEST_API}/tabs/${tab}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(row)
+    });
+    if (!res.ok) throw new Error(`Error POST ${tab}: ${res.status}`);
+    return await res.json();
+}
+async function sbPut(tab, id, row) {
+    const res = await fetch(`${SHEETBEST_API}/tabs/${tab}/id/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(row)
+    });
+    if (!res.ok) throw new Error(`Error PUT ${tab}: ${res.status}`);
+    return await res.json();
+}
+async function sbDelete(tab, id) {
+    const res = await fetch(`${SHEETBEST_API}/tabs/${tab}/id/${id}`, {
+        method: "DELETE"
+    });
+    if (!res.ok) throw new Error(`Error DELETE ${tab}: ${res.status}`);
+    return await res.json();
+}
+
+function normalizarClientes(arr) {
+    return arr.map(x => ({
+        id: Number(x.id) || Date.now(),
+        nombre: String(x.nombre || ""),
+        telefono: String(x.telefono || ""),
+        direccion: String(x.direccion || ""),
+        moto: String(x.moto || ""),
+        fecha: String(x.fecha || new Date().toLocaleDateString())
+    }));
+}
+function normalizarProductos(arr) {
+    return arr.map(x => ({
+        id: Number(x.id) || Date.now(),
+        nombre: String(x.nombre || ""),
+        precio: parseFloat(x.precio) || 0,
+        cantidad: parseInt(x.cantidad) || 0,
+        stockMin: parseInt(x.stockMin) || 5,
+        fecha: String(x.fecha || new Date().toLocaleDateString())
+    }));
+}
+function normalizarVentas(arr) {
+    return arr.map(x => ({
+        id: Number(x.id) || Date.now(),
+        clienteId: Number(x.clienteId) || 0,
+        cliente: String(x.cliente || ""),
+        productoId: Number(x.productoId) || 0,
+        producto: String(x.producto || ""),
+        cantidad: parseInt(x.cantidad) || 0,
+        precioUnitario: parseFloat(x.precioUnitario) || 0,
+        total: parseFloat(x.total) || 0,
+        fecha: String(x.fecha || new Date().toLocaleDateString())
+    }));
+}
+
+async function inicializarApp() {
+    await cargarDatos();
     configurarEventos();
     actualizarTodo();
 }
@@ -45,10 +113,24 @@ function guardarDatos() {
     localStorage.setItem("ventas", JSON.stringify(ventas));
 }
 
-function cargarDatos() {
-    clientes = JSON.parse(localStorage.getItem("clientes")) || [];
-    productos = JSON.parse(localStorage.getItem("productos")) || [];
-    ventas = JSON.parse(localStorage.getItem("ventas")) || [];
+async function cargarDatos() {
+    try {
+        const [c, p, v] = await Promise.all([
+            sbGet("Clientes"),
+            sbGet("Productos"),
+            sbGet("Ventas")
+        ]);
+        clientes = normalizarClientes(c);
+        productos = normalizarProductos(p);
+        ventas = normalizarVentas(v);
+        guardarDatos(); // Cache local
+        console.log("Datos cargados desde sheet.best");
+    } catch (err) {
+        console.warn("sheet.best no disponible, usando localStorage:", err);
+        clientes = JSON.parse(localStorage.getItem("clientes")) || [];
+        productos = JSON.parse(localStorage.getItem("productos")) || [];
+        ventas = JSON.parse(localStorage.getItem("ventas")) || [];
+    }
 }
 
 function showTab(tabId) {
@@ -94,7 +176,7 @@ function cargarClientesEnSelect() {
     });
 }
 
-function guardarCliente(editando, id) {
+async function guardarCliente(editando, id) {
     const clienteData = {
         id: id || Date.now(),
         nombre: document.getElementById('clienteNombre').value.trim(),
@@ -110,9 +192,11 @@ function guardarCliente(editando, id) {
     if (editando) {
         const idx = clientes.findIndex(c => c.id === id);
         if (idx > -1) clientes[idx] = clienteData;
+        try { await sbPut("Clientes", id, clienteData); } catch(e) { console.error(e); }
         Swal.fire('Actualizado', 'Cliente actualizado correctamente', 'success');
     } else {
         clientes.push(clienteData);
+        try { await sbPost("Clientes", clienteData); } catch(e) { console.error(e); }
         Swal.fire('Guardado', 'Cliente guardado correctamente', 'success');
     }
     guardarDatos();
@@ -120,7 +204,6 @@ function guardarCliente(editando, id) {
     cargarClientesEnSelect();
     document.getElementById('formCliente').reset();
     actualizarTodo();
-    sincronizarExcel();
 }
 
 function editarCliente(id) {
@@ -147,21 +230,21 @@ function editarCliente(id) {
     document.getElementById("formCliente").addEventListener("submit", newHandler);
 }
 
-function eliminarCliente(id) {
+async function eliminarCliente(id) {
     Swal.fire({
         title: 'Eliminar cliente?',
         text: 'Esta accion no se puede deshacer',
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: 'Si, eliminar'
-    }).then((result) => {
+    }).then(async (result) => {
         if (result.isConfirmed) {
             clientes = clientes.filter(c => c.id !== id);
             guardarDatos();
             mostrarClientes();
             cargarClientesEnSelect();
             actualizarTodo();
-            sincronizarExcel();
+            try { await sbDelete("Clientes", id); } catch(e) { console.error(e); }
             Swal.fire('Eliminado', 'Cliente eliminado', 'success');
         }
     });
@@ -209,7 +292,7 @@ function cargarProductosEnSelect() {
     calcularTotalVenta();
 }
 
-function guardarProducto(editando, id) {
+async function guardarProducto(editando, id) {
     const cantidadVal = parseInt(document.getElementById('productoCantidad').value);
     const precioVal = parseFloat(document.getElementById('productoPrecio').value);
     const productoData = {
@@ -227,9 +310,11 @@ function guardarProducto(editando, id) {
     if (editando) {
         const idx = productos.findIndex(p => p.id === id);
         if (idx > -1) productos[idx] = productoData;
+        try { await sbPut('Productos', id, productoData); } catch(e) { console.error(e); }
         Swal.fire('Actualizado', 'Producto actualizado correctamente', 'success');
     } else {
         productos.push(productoData);
+        try { await sbPost('Productos', productoData); } catch(e) { console.error(e); }
         Swal.fire('Guardado', 'Producto guardado correctamente', 'success');
     }
     guardarDatos();
@@ -237,7 +322,6 @@ function guardarProducto(editando, id) {
     cargarProductosEnSelect();
     document.getElementById('formProducto').reset();
     actualizarTodo();
-    sincronizarExcel();
 }
 
 function editarProducto(id) {
@@ -263,21 +347,21 @@ function editarProducto(id) {
     document.getElementById("formProducto").addEventListener("submit", newHandler);
 }
 
-function eliminarProducto(id) {
+async function eliminarProducto(id) {
     Swal.fire({
         title: 'Eliminar producto?',
         text: 'Esta accion no se puede deshacer',
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: 'Si, eliminar'
-    }).then((result) => {
+    }).then(async (result) => {
         if (result.isConfirmed) {
             productos = productos.filter(p => p.id !== id);
             guardarDatos();
             mostrarProductos();
             cargarProductosEnSelect();
             actualizarTodo();
-            sincronizarExcel();
+            try { await sbDelete('Productos', id); } catch(e) { console.error(e); }
             Swal.fire('Eliminado', 'Producto eliminado', 'success');
         }
     });
@@ -306,7 +390,7 @@ function mostrarVentas() {
             </tr>`).join('') + '</tbody></table>';
 }
 
-function registrarVenta() {
+async function registrarVenta() {
     const clienteId = parseInt(document.getElementById('ventaCliente').value);
     const productoId = parseInt(document.getElementById('ventaProducto').value);
     const cantidad = parseInt(document.getElementById('ventaCantidad').value);
@@ -342,23 +426,24 @@ function registrarVenta() {
     calcularTotalVenta();
     actualizarTodo();
     Swal.fire({ icon: 'success', title: 'Venta registrada', text: `Total: $${venta.total.toFixed(2)}`, timer: 2500 });
-    sincronizarExcel();
+    try { await sbPost('Ventas', venta); } catch(e) { console.error(e); }
+    try { await sbPut('Productos', producto.id, producto); } catch(e) { console.error(e); }
 }
 
-function eliminarVenta(id) {
+async function eliminarVenta(id) {
     Swal.fire({
         title: 'Eliminar venta?',
         text: 'Esta accion no se puede deshacer',
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: 'Si, eliminar'
-    }).then((result) => {
+    }).then(async (result) => {
         if (result.isConfirmed) {
             ventas = ventas.filter(v => v.id !== id);
             guardarDatos();
             mostrarVentas();
             actualizarTodo();
-            sincronizarExcel();
+            try { await sbDelete('Ventas', id); } catch(e) { console.error(e); }
             Swal.fire('Eliminado', 'Venta eliminada', 'success');
         }
     });
@@ -378,14 +463,7 @@ function calcularTotalVenta() {
 }
 
 function sincronizarExcel() {
-    fetch("http://localhost:3000/guardarExcel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientes, productos, ventas })
-    })
-    .then(res => res.json())
-    .then(data => console.log(data.mensaje))
-    .catch(err => console.error("Error al sincronizar Excel:", err));
+    // Funcion deprecada: ahora se usa sheet.best directamente
 }
 
 function exportarExcelManual() {

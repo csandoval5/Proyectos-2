@@ -1,42 +1,36 @@
-# Plan de Correccion - Inventario Taller Motos PRO
+# Plan de Migración a sheet.best - PRODUCCIÓN
 
 ## Pasos completados:
-
-- [x] 1. Analizar y documentar errores encontrados
-- [x] 2. Crear funcion `showTab()` para navegacion por pestanas
-- [x] 3. Sincronizar IDs: cambiar `tablaClientes/Productos/Ventas` → `listaClientes/Productos/Ventas`
-- [x] 4. Implementar renderizado de tablas en `listaClientes/Productos/Ventas`
-- [x] 5. Sincronizar IDs de estadisticas: `statClientes` → `totalClientes`, etc.
-- [x] 6. Implementar busqueda funcional en `#buscador`
-- [x] 7. Actualizar badges de pestanas (`badgeClientes`, `badgeProductos`, `badgeVentas`)
-- [x] 8. Conectar reportes con IDs reales del HTML (`ventasHoy`, `ingresosHoy`, `graficoVentas`, etc.)
-- [x] 9. Arreglar input de importacion Excel (`inputExcel` vs `inputImportar`)
-- [x] 10. Eliminar inicializacion duplicada (dejar solo `DOMContentLoaded`)
-- [x] 11. Agregar evento basico al boton de configuracion
-- [x] 12. Agregar funciones de editar/eliminar a clientes, productos y ventas
-- [x] 13. Agregar estilos CSS para tablas, botones de accion, estados de stock y responsive
-- [x] 14. Verificar integridad final y consistencia entre archivos
+- [x] 1. Agregar constante SHEETBEST_API y funciones helper (sbGet, sbPost, sbPut, sbDelete)
+- [x] 2. Agregar funciones de normalización de datos (sheet.best devuelve strings)
+- [x] 3. Convertir `cargarDatos()` a async para cargar desde sheet.best con fallback a localStorage
+- [x] 4. Convertir `inicializarApp()` a async
+- [x] 5. Marcar `sincronizarExcel()` como obsoleto (ya no usa localhost)
+- [x] 6. Actualizar `guardarCliente()` para sincronizar POST/PUT con sheet.best
+- [x] 7. Actualizar `eliminarCliente()` para sincronizar DELETE con sheet.best
+- [x] 8. Actualizar `guardarProducto()` para sincronizar POST/PUT con sheet.best
+- [x] 9. Actualizar `eliminarProducto()` para sincronizar DELETE con sheet.best
+- [x] 10. Actualizar `registrarVenta()` para sincronizar POST venta + PUT stock con sheet.best
+- [x] 11. Actualizar `eliminarVenta()` para sincronizar DELETE con sheet.best
+- [x] 12. Verificar flujo completo (carga inicial, creación, edición, eliminación)
 
 ## Resumen de cambios aplicados:
 
 ### script.js
-- Sincronizacion completa de IDs con index.html
-- Implementacion de `showTab()` para navegacion por pestanas
-- Renderizado de tablas HTML para clientes, productos y ventas
-- Funciones de editar y eliminar con confirmacion SweetAlert2
-- Busqueda global funcional con filtro por tipo
-- Contadores y badges conectados a los datos reales
-- Reportes conectados: ventas del dia, mejor cliente, producto mas vendido, stock critico
-- Grafico de Chart.js funcionando con datos reales
-- Eliminacion de inicializacion duplicada
-- Mejor manejo de errores y validaciones
+- Integración completa con sheet.best API: `https://api.sheetbest.com/sheets/374a3909-caf8-4232-8572-da1c862226ec`
+- Helpers asíncronos: `sbGet`, `sbPost`, `sbPut`, `sbDelete`
+- Normalización de datos para convertir strings de sheet.best a números/tipos correctos
+- Carga inicial async desde 3 pestañas (`Clientes`, `Productos`, `Ventas`) con fallback a localStorage
+- Cada mutación (crear/editar/eliminar) sincroniza incrementalmente con sheet.best
+- `sincronizarExcel()` deprecado (ya no llama a localhost:3000)
+- Exportar/Importar Excel local preservado como backup opcional
 
-### style.css
-- Estilos para tablas de datos (`.data-table`)
-- Botones de accion con iconos (`.btn-icon`, `.btn-danger`)
-- Estados de stock coloridos (`.estado-critico`, `.estado-bajo`, `.estado-ok`)
-- Mejoras responsive para tablas y botones en moviles
+### Requisitos en Google Sheets
+Asegúrate de que tu hoja de sheet.best tenga 3 pestañas exactamente nombradas:
+1. `Clientes` — columnas: `id`, `nombre`, `telefono`, `direccion`, `moto`, `fecha`
+2. `Productos` — columnas: `id`, `nombre`, `precio`, `cantidad`, `stockMin`, `fecha`
+3. `Ventas` — columnas: `id`, `clienteId`, `cliente`, `productoId`, `producto`, `cantidad`, `precioUnitario`, `total`, `fecha`
 
 ### Estado final
-✅ Aplicacion funcional y lista para usar. Abre `index.html` en tu navegador o inicia el servidor con `node server.js`.
+✅ Aplicación lista para producción. Puedes desplegar `index.html`, `style.css`, `script.js`, `manifest.json` y `sw.js` en cualquier hosting estático (GitHub Pages, Netlify, Vercel, etc.). Ya no requiere `node server.js`.
 
