@@ -1,9 +1,15 @@
+// =================================================================
 // CONFIGURACION SUPABASE
+// =================================================================
 const SUPABASE_URL = 'https://cdvmqzhqjskknfntomtx.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_wWPwhAUH6NZFYx0j5t1mSA_OebPJgoX';
 
-// Inicialización del cliente oficial
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sbHeaders = {
+    'apikey': SUPABASE_KEY,
+    'Authorization': 'Bearer ' + SUPABASE_KEY,
+    'Content-Type': 'application/json',
+    'Prefer': 'return=minimal'
+};
 
 // =================================================================
 // ESTADO LOCAL (localStorage como fuente principal)
