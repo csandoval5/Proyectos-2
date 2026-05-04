@@ -329,3 +329,5 @@ loadInventory = async function() {
 
 // Inicialización
 window.onload = checkSession;
+
+// Fin del archivo
