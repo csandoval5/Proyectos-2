@@ -15,13 +15,20 @@ const APPWRITE_VENTAS = 'ventas';
 const ADMIN_TEAM = 'Administradores';
 const MECHANIC_TEAM = 'Mecanicos';
 
-const client = new Appwrite.Client();
-client.setEndpoint(APPWRITE_ENDPOINT).setProject(APPWRITE_PROJECT);
+// APPWRITE INIT - DEFERRED SAFE
+let client, account, teams, database, ID;
 
-const account = new Appwrite.Account(client);
-const teams = new Appwrite.Teams(client);
-const database = new Appwrite.Databases(client);
-const ID = new Appwrite.IDs(client);
+function initAppwrite() {
+  client = new Appwrite.Client();
+  client.setEndpoint(APPWRITE_ENDPOINT).setProject(APPWRITE_PROJECT);
+  
+  account = new Appwrite.Account(client);
+  teams = new Appwrite.Teams(client);
+  database = new Appwrite.Databases(client);
+  ID = new Appwrite.IDs(client);
+  
+  console.log('✅ Appwrite inicializado');
+}
 
 let currentUser = null;
 let currentRole = null;
@@ -80,6 +87,9 @@ function validateFormData(type, data) {
 
 // ===== AUTH - FIXED PER USER SPECS =====
 async function checkSession() {
+  // INIT APPWRITE if not done
+  if (!client) initAppwrite();
+  
   // SEGURIDAD APPWRITE LOADED
   if (typeof Appwrite === 'undefined') {
     console.error('❌ Appwrite SDK no cargó - CDN bloqueado');
@@ -95,6 +105,7 @@ async function checkSession() {
   try {
     console.log('🔍 Verificando sesión...');
     currentUser = await account.get();
+
     console.log('✅ Usuario activo:', currentUser.email);
     
     // TRY/CATCH TEAMS - DEFAULT 'admin' si falla

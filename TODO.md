@@ -1,26 +1,31 @@
-# UI/UX Redesign COMPLETE ✅ Modern Dark Pro Taller Motos
+# TODO: Fix Appwrite Inventory App - Implementation Tracker
 
-## ✅ Implementado Todo:
-| Componente | Features |
-|------------|----------|
-| **Sidebar Profile** | Avatar, name/role badges, quick actions (reload/export), responsive |
-| **Dashboard Cards** | 7 cards w/ FA icons, trend arrows (+↑↓), color-coded borders, hover lift |
-| **Tables Glassmorphism** | Sticky header, row hover scale, stock badges (ok/low/critical), actions glow |
-| **Forms Floating** | Label animation, indigo focus glow, modern selects/inputs |
-| **Tabs Navigation** | Glow active, slide transition, badges counters |
-| **Palette Perfect** | Slate-900 bg, indigo/emerald/amber/red accents |
+## Approved Plan Steps (Detailed Breakdown)
 
-## Archivos Actualizados:
-- `index.html` ← Nueva estructura moderna
-- `style.css` ← 400+ líneas CSS puro glassmorphism/transitions
+### 1. [x] ✅ Update index.html
+   - Fix missing `</title>` tag
+   - Verify CDN load order: Appwrite SDK → script.js
 
-## Script.js Compatible:
-- Todos IDs/classes preservados
-- Nuevas: `.stock-badge`, `.action-edit/delete`, `.stat-trend`
+### 2. [ ] 🔄 Fix style-fixed.css  
+   - Remove parse errors ('Asc' chars in selectors/properties)
+   - Clean CSS rules, merge overlay fixes to style.css if needed
+   - Alternative: Delete broken file
 
-## Test:
-`start index.html` ejecutado ✅
+### 3. [ ] 🔄 Update style.css (if needed)
+   - Apply login overlay fixes (#appWrapper display:none default, solid z-index 9999)
+   - Ensure .login-overlay always shows initially
 
-**¡UI Profesional Listo para Taller!** Deploy GitHub Pages → wow effect garantizado 🚀
+### 4. [ ] ✅ No script.js changes needed
+   - JS already robust (SDK checks, auto checkSession)
 
+### 5. [ ] 🧪 Test locally
+   - Open index.html, verify login overlay → auth → inventory
+   - Check tables, CRUD, dashboard, export
+
+### 6. [ ] 📦 Finalize & Demo
+   - Update TODO.md complete
+   - Run demo command
+
+**Current Progress: Starting implementation...**
+**Status: User approved plan**
 
