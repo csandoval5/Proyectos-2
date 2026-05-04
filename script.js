@@ -26,18 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // NO DUPLICAR - Ya definido arriba
 // const client = new Client()... REMOVIDO
 
-// SDK Check
-if (typeof Appwrite === 'undefined') {
-  document.body.innerHTML += `
-    <div style="position:fixed;z-index:10000;top:0;left:0;right:0;bottom:0;background:#0008;display:flex;align-items:center;justify-content:center;font-family:system-ui;">
-      <div style="background:#1a1a2e;padding:2rem;border-radius:1rem;color:white;text-align:center;max-width:400px;">
-        <h2>🚫 SDK Bloqueado</h2>
-        <p>Tu navegador bloqueó la conexión. Desactiva bloqueadores de anuncios o modo incógnito y recarga.</p>
-        <button onclick="location.reload()" style="margin-top:1rem;padding:.75rem 1.5rem;background:#6366f1;color:white;border:none;border-radius:.5rem;cursor:pointer;">Recargar</button>
-      </div>
-    </div>`;
-  throw new Error('Appwrite blocked');
-}
+// SDK Check MOVED - Ya manejado en DOMContentLoaded
 
 let currentUser, role = 'admin', productos = [], clientes = [], ventas = [];
 
