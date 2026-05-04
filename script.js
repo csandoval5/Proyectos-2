@@ -1,113 +1,94 @@
-/* Appwrite FIXED - Global IIFE v14 + Error Handling */
-// Esperar DOM + check window.Appwrite
-document.addEventListener('DOMContentLoaded', () => {
-  if (typeof window.Appwrite === 'undefined') {
-    console.error("Appwrite SDK bloqueado");
-    Swal.fire({
-      title: 'SDK Bloqueado',
-      text: 'Desactiva bloqueadores de anuncios',
-      icon: 'warning'
-    });
-    return;
-  }
-  
-  const client = new window.Appwrite.Client()
+// window.Appwrite - Inicialización única sin duplicados
+const { Client, Account, Databases, Teams, ID } = window.Appwrite;
+
+const client = new Client()
     .setEndpoint('https://nyc.cloud.appwrite.io/v1')
     .setProject('69f8b97e0005a97657e6');
-  
-  const account = new window.Appwrite.Account(client);
-  const databases = new window.Appwrite.Databases(client);
-  const ID = new window.Appwrite.ID(client);
-  
-  /* TÚ LÓGICA ORIGINAL DESDE AQUÍ ABAJO */
 
+const account = new Account(client);
+const database = new Databases(client);
+const teams = new Teams(client);
+const ID = new ID(client);
 
-// CONFIG
-// NO DUPLICAR - Ya definido arriba
-// const client = new Client()... REMOVIDO
+let currentUser = null;
+let currentRole = 'admin';
+let productos = [];
+let clientes = [];
+let ventas = [];
+let editingId = null;
 
-// SDK Check MOVED - Ya manejado en DOMContentLoaded
+// ===== UI FUNCTIONS =====
+function showElement(selector, show = true) {
+  document.querySelectorAll(selector).forEach(el => el.classList.toggle('hidden', !show));
+}
 
-let currentUser, role = 'admin', productos = [], clientes = [], ventas = [];
-
-// UI TOGGLE
 function showApp() {
-  document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('appWrapper').style.display = 'block';
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('appWrapper').classList.remove('hidden');
 }
 
 function showLogin() {
-  document.getElementById('loginScreen').style.display = 'flex';
-  document.getElementById('appWrapper').style.display = 'none';
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('appWrapper').classList.add('hidden');
 }
 
-// LOGIN
+// ===== AUTH =====
+async function checkSession() {
+  try {
+    currentUser = await account.get();
+    currentRole = 'admin';
+    document.getElementById('userName').textContent = currentUser.name || currentUser.email;
+    document.getElementById('userRole').textContent = currentRole;
+    showApp();
+    await loadAllData();
+    showToast('¡Bienvenido!');
+  } catch {
+    showLogin();
+  }
+}
+
 window.iniciarSesion = async (e) => {
   e.preventDefault();
   const email = document.getElementById('loginEmail').value;
   const password = document.getElementById('loginPassword').value;
   
   try {
-    await account.deleteSession('current');
     await account.createEmailPasswordSession(email, password);
-    showToast('Login exitoso!');
-    setTimeout(() => location.reload(), 1000);
+    location.reload();
   } catch (err) {
-    showToast(err.message || 'Error login', 'error');
+    Swal.fire('Error', err.message, 'error');
   }
 };
 
-// CHECK SESSION
-async function checkSession() {
-  try {
-    currentUser = await account.get();
-    role = 'admin'; // Bypass teams
-    document.getElementById('userName').textContent = currentUser.email;
-    document.getElementById('userRole').textContent = role;
-    showApp();
-    loadData();
-  } catch {
-    showLogin();
-  }
-}
+document.getElementById('btnLogout')?.addEventListener('click', () => {
+  account.deleteSession('current').then(location.reload);
+});
 
-// DATA CRUD (simplified)
-async function loadData() {
+// ===== DATA =====
+async function loadAllData() {
   try {
-    const [p, c, v] = await Promise.all([
+    const response = await Promise.all([
       database.listDocuments('69f8bb61001e9d5f2120', 'productos'),
       database.listDocuments('69f8bb61001e9d5f2120', 'clientes'),
       database.listDocuments('69f8bb61001e9d5f2120', 'ventas')
     ]);
-    productos = p.documents;
-    clientes = c.documents;
-    ventas = v.documents;
-    updateUI();
-  } catch (e) {
-    console.log('Data load fail:', e);
+    [productos, clientes, ventas] = response.map(r => r.documents);
+    renderAll();
+    updateDashboard();
+  } catch (err) {
+    console.error('Load error:', err);
   }
 }
 
-async function saveData(col, data) {
-  try {
-    await database.createDocument('69f8bb61001e9d5f2120', col, ID.unique(), data);
-    loadData();
-    showToast('Guardado!');
-  } catch (e) {
-    showToast('Error guardando', 'error');
-  }
+// ===== UI RENDER =====
+function renderAll() {
+  // Tables, badges, etc.
 }
 
-// UI UPDATE (simplified)
-function updateUI() {
+function updateDashboard() {
   document.getElementById('totalProducts').textContent = productos.length;
-  // More updates...
+  // More...
 }
 
-function showToast(msg, type = 'success') {
-  // SweetAlert toast
-}
-
-// INIT
+// ===== INIT =====
 document.addEventListener('DOMContentLoaded', checkSession);
-document.getElementById('btnLogout')?.addEventListener('click', () => account.deleteSession('current').then(location.reload));
