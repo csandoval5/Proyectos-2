@@ -28,7 +28,7 @@
     </aside>
 
     <main class="main-container">
-        <!-- LOGIN OVERLAY - SOLID -->
+        <!-- LOGIN OVERLAY -->
         <div class="login-overlay" id="loginScreen">
             <div class="login-card">
                 <div class="login-header">
@@ -65,60 +65,36 @@
                 </div>
             </header>
 
-            <!-- DASHBOARD -->
             <section class="dashboard-stats">
                 <div class="stat-card emerald">
                     <i class="fas fa-boxes-stacked"></i>
-                    <div>
-                        <div>Productos</div>
-                        <div id="totalProducts">0</div>
-                    </div>
+                    <div>Productos <span id="totalProducts">0</span></div>
                 </div>
-                <div class="stat-card">
-                    <i class="fas fa-warehouse"></i>
-                    <div>
-                        <div>Stock Total</div>
-                        <div id="totalStock">0</div>
-                    </div>
-                </div>
-                <!-- More stats... -->
+                <!-- Stats... -->
             </section>
 
-            <!-- TABS -->
+            <!-- TABS + FORMS + TABLES -->
             <nav class="tabs-nav">
-                <button class="tab-btn active" onclick="showTab('productos')">
-                    <i class="fas fa-box"></i> Productos <span id="badgeProductos">0</span>
-                </button>
-                <button class="tab-btn" onclick="showTab('clientes')">
-                    <i class="fas fa-users"></i> Clientes <span id="badgeClientes">0</span>
-                </button>
-                <button class="tab-btn" onclick="showTab('ventas')">
-                    <i class="fas fa-receipt"></i> Ventas <span id="badgeVentas">0</span>
-                </button>
+                <button onclick="showTab('productos')">Productos</button>
+                <button onclick="showTab('clientes')">Clientes</button>
+                <button onclick="showTab('ventas')">Ventas</button>
             </nav>
 
-            <!-- PRODUCTOS TAB (form + table) -->
             <div id="productos" class="tab-panel active">
-                <div class="content-grid">
-                    <div class="panel-card">
-                        <form id="productForm">
-                            <input id="productNombre" placeholder="Nombre" required>
-                            <input id="productPrecio" type="number" placeholder="Precio" required>
-                            <input id="productCantidad" type="number" placeholder="Cantidad" required>
-                            <button type="submit">Guardar</button>
-                        </form>
-                    </div>
-                    <table class="glass-table">
-                        <tbody id="productosBody"></tbody>
-                    </table>
-                </div>
+                <form id="productForm">
+                    <input id="productNombre" required>
+                    <input id="productPrecio" type="number">
+                    <input id="productCantidad" type="number">
+                    <button>Guardar</button>
+                </form>
+                <table id="productosBody"></table>
             </div>
-            <!-- Other tabs similar... -->
+            <!-- Other tabs... -->
         </div>
     </main>
 
-    <!-- FIXED CDN ORDER -->
-https://cdn.jsdelivr.net/npm/appwrite@14.0.1/dist/iife/sdk.bundle.js
+    <!-- SDK CRÍTICO PRIMERO -->
+    <script src="https://cdn.jsdelivr.net/npm/appwrite@14.0.1/dist/iife/sdk.bundle.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
