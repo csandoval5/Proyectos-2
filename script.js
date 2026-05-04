@@ -199,5 +199,133 @@ function closeModal(id) {
     document.getElementById(id).classList.remove('flex');
 }
 
+// === 7. FUNCIONES FALTANTES ===
+async function openEditModal(id) {
+    const item = inventoryData.find(p => p.$id === id);
+    if (item) {
+        // Populate edit modal fields (assuming editModal exists)
+        document.getElementById('editProdCodigo').value = item.codigo || '';
+        document.getElementById('editProdNombre').value = item.nombre || '';
+        document.getElementById('editProdPrecio').value = item.precio || 0;
+        document.getElementById('editProdCantidad').value = item.cantidad || 0;
+        document.getElementById('editProdMin').value = item.stockMin || 0;
+        document.getElementById('editProdCategoria').value = item.categoria || '';
+        document.getElementById('editProdId').value = id;
+        openModal('editModal');
+    }
+}
+
+async function deleteProduct(id) {
+    if (confirm('¿Eliminar producto?')) {
+        try {
+            await databases.deleteDocument(DATABASE_ID, COLLECTION_ID, id);
+            loadInventory();
+        } catch (error) {
+            alert('Error al eliminar: ' + error.message);
+        }
+    }
+}
+
+function showTab(tabName) {
+    // Hide all tabs
+    document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    
+    // Show selected
+    document.getElementById(tabName).classList.add('active');
+    event.target.classList.add('active');
+}
+
+async function loadSales() {
+    try {
+        const response = await databases.listDocuments(DATABASE_ID, VENTAS_ID, [Query.orderDesc('fecha')]);
+        salesData = response.documents;
+        renderSales(salesData);
+    } catch (error) {
+        console.error('Error cargando ventas:', error);
+    }
+}
+
+function renderSales(items) {
+    const container = document.getElementById('salesTableBody');
+    if (!container) return;
+    container.innerHTML = '';
+    items.forEach(sale => {
+        const row = `
+            <tr class="border-b border-slate-700 hover:bg-slate-800/50">
+                <td class="p-3">${sale.productoNombre}</td>
+                <td class="p-3 text-center">${sale.cantidad}</td>
+                <td class="p-3 font-medium">$${sale.total.toLocaleString()}</td>
+                <td class="p-3 text-slate-400">${new Date(sale.fecha).toLocaleDateString()}</td>
+            </tr>`;
+        container.innerHTML += row;
+    });
+}
+
+function exportExcel() {
+    const data = inventoryData.map(item => ({
+        Código: item.codigo,
+        Nombre: item.nombre,
+        Precio: item.precio,
+        Stock: item.cantidad,
+        'Stock Mín': item.stockMin,
+        Categoría: item.categoria
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Inventario');
+    XLSX.writeFile(wb, 'inventario_' + new Date().toISOString().slice(0,10) + '.xlsx');
+}
+
+// Event Listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Login form
+    document.getElementById('loginForm')?.addEventListener('submit', e => {
+        e.preventDefault();
+        const email = document.getElementById('loginEmail').value;
+        const password = document.getElementById('loginPassword').value;
+        login(email, password);
+    });
+    
+    // Product form
+    document.getElementById('productForm')?.addEventListener('submit', saveProduct);
+    
+    // Venta form
+    document.getElementById('ventaForm')?.addEventListener('submit', registrarVenta);
+    
+    // Search & filter
+    document.getElementById('searchInput')?.addEventListener('input', filterTable);
+    
+    // Logout
+    document.getElementById('btnLogout')?.addEventListener('click', logout);
+    
+    // Export
+    document.getElementById('btnExportExcel')?.addEventListener('click', exportExcel);
+    
+    // Update role class for admin-only
+    if (currentRole === 'admin') {
+        document.querySelector('.sidebar-profile').classList.add('admin');
+    }
+    
+    // Populate venta select
+    updateVentaSelect();
+});
+
+function updateVentaSelect() {
+    const select = document.getElementById('ventaProdId');
+    if (select) {
+        select.innerHTML = '<option value="">Seleccione producto</option>' + 
+            inventoryData.map(p => `<option value="${p.$id}">${p.codigo} - ${p.nombre} (Stock: ${p.cantidad})</option>`).join('');
+    }
+}
+
+// Update select after inventory load
+const originalLoadInventory = loadInventory;
+loadInventory = async function() {
+    await originalLoadInventory();
+    updateVentaSelect();
+    updateDashboard();
+};
+
 // Inicialización
 window.onload = checkSession;

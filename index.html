@@ -17,19 +17,19 @@
         <div class="profile-card">
             <div class="avatar"><i class="fas fa-user"></i></div>
             <div>
-                <h3 id="userName">Usuario</h3>
-                <span id="userRole" class="role-badge">Admin</span>
+                <h3 id="userNameDisplay">Usuario</h3>
+                <span id="userRole" class="role-badge">Empleado</span>
             </div>
             <button id="btnLogout" class="btn-logout"><i class="fas fa-sign-out-alt"></i></button>
         </div>
         <nav class="quick-actions">
-            <button id="btnExportExcel" class="quick-btn admin-only"><i class="fas fa-file-excel"></i></button>
+            <button id="btnExportExcel" class="quick-btn admin-only"><i class="fas fa-file-excel"></i> Exportar</button>
         </nav>
     </aside>
 
     <main class="main-container">
         <!-- LOGIN OVERLAY -->
-        <div class="login-overlay" id="loginScreen">
+        <div class="login-overlay hidden" id="loginScreen">
             <div class="login-card">
                 <div class="login-header">
                     <i class="fas fa-motorcycle login-icon"></i>
@@ -53,7 +53,7 @@
         </div>
 
         <!-- APP CONTENT -->
-        <div id="appWrapper" class="hidden">
+        <div id="appWrapper" style="display: none;">
             <header class="app-header">
                 <div class="brand">
                     <i class="fas fa-motorcycle"></i>
@@ -61,39 +61,168 @@
                 </div>
                 <div class="search-global">
                     <i class="fas fa-search"></i>
-                    <input id="globalSearch" placeholder="Buscar...">
+                    <input id="searchInput" placeholder="Buscar productos...">
                 </div>
             </header>
 
+            <!-- DASHBOARD STATS -->
             <section class="dashboard-stats">
                 <div class="stat-card emerald">
                     <i class="fas fa-boxes-stacked"></i>
-                    <div>Productos <span id="totalProducts">0</span></div>
+                    <div>Total Productos <span id="statTotal">0</span></div>
                 </div>
-                <!-- Stats... -->
+                <div class="stat-card indigo">
+                    <i class="fas fa-dollar-sign"></i>
+                    <div>Inversión Total <span id="statInversion">$0</span></div>
+                </div>
+                <div class="stat-card red">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div>Alertas Stock <span id="statAlertas">0</span></div>
+                </div>
             </section>
 
-            <!-- TABS + FORMS + TABLES -->
+            <!-- TABS -->
             <nav class="tabs-nav">
-                <button onclick="showTab('productos')">Productos</button>
-                <button onclick="showTab('clientes')">Clientes</button>
-                <button onclick="showTab('ventas')">Ventas</button>
+                <button class="tab-btn active" onclick="showTab('productos')">Productos</button>
+                <button class="tab-btn" onclick="showTab('ventas')">Ventas</button>
             </nav>
 
+            <!-- PRODUCTOS TAB -->
             <div id="productos" class="tab-panel active">
-                <form id="productForm">
-                    <input id="productNombre" required>
-                    <input id="productPrecio" type="number">
-                    <input id="productCantidad" type="number">
-                    <button>Guardar</button>
-                </form>
-                <table id="productosBody"></table>
+                <!-- ADD PRODUCT FORM -->
+                <div class="panel-card">
+                    <h2><i class="fas fa-plus"></i> Nuevo Producto</h2>
+                    <form id="productForm">
+                        <div class="form-row">
+                            <div class="input-group">
+                                <label>Código</label>
+                                <input id="prodCodigo" required>
+                            </div>
+                            <div class="input-group">
+                                <label>Nombre</label>
+                                <input id="prodNombre" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="input-group">
+                                <label>Precio ($)</label>
+                                <input id="prodPrecio" type="number" step="0.01" required>
+                            </div>
+                            <div class="input-group">
+                                <label>Cantidad</label>
+                                <input id="prodCantidad" type="number" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="input-group">
+                                <label>Stock Mínimo</label>
+                                <input id="prodMin" type="number" value="5">
+                            </div>
+                            <div class="input-group">
+                                <label>Categoría</label>
+                                <select id="prodCategoria">
+                                    <option value="">Seleccione</option>
+                                    <option value="Motos">Motos</option>
+                                    <option value="Repuestos">Repuestos</option>
+                                    <option value="Accesorios">Accesorios</option>
+                                    <option value="Herramientas">Herramientas</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-emerald"><i class="fas fa-save"></i> Guardar Producto</button>
+                    </form>
+                </div>
+
+                <!-- INVENTORY TABLE -->
+                <div class="panel-card">
+                    <h2><i class="fas fa-list"></i> Inventario</h2>
+                    <table class="glass-table">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Nombre</th>
+                                <th>Precio</th>
+                                <th>Stock</th>
+                                <th>Categoría</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryTableBody"></tbody>
+                    </table>
+                </div>
             </div>
-            <!-- Other tabs... -->
+
+            <!-- VENTAS TAB -->
+            <div id="ventas" class="tab-panel">
+                <!-- VENTA FORM -->
+                <div class="panel-card">
+                    <h2><i class="fas fa-cash-register"></i> Registrar Venta</h2>
+                    <form id="ventaForm">
+                        <div class="form-row">
+                            <div class="input-group w-full">
+                                <label>Producto</label>
+                                <select id="ventaProdId" required>
+                                    <option value="">Seleccione producto</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="input-group">
+                                <label>Cantidad</label>
+                                <input id="ventaCantidad" type="number" min="1" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-emerald"><i class="fas fa-shopping-cart"></i> Registrar Venta</button>
+                    </form>
+                </div>
+
+                <!-- SALES TABLE -->
+                <div class="panel-card">
+                    <h2><i class="fas fa-history"></i> Historial Ventas</h2>
+                    <table class="glass-table">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Cant.</th>
+                                <th>Total</th>
+                                <th>Fecha</th>
+                            </tr>
+                        </thead>
+                        <tbody id="salesTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </main>
 
-    <!-- SDK CRÍTICO PRIMERO -->
+    <!-- MODALS -->
+    <!-- PRODUCT MODAL -->
+    <div id="productModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Nuevo Producto</h3>
+                <button onclick="closeModal('productModal')" class="btn-close">&times;</button>
+            </div>
+            <form id="productModalForm">
+                <!-- Fields same as productForm -->
+                <div class="input-group"><label>Código</label><input id="modalProdCodigo"></div>
+                <div class="input-group"><label>Nombre</label><input id="modalProdNombre"></div>
+                <!-- ... more fields ... -->
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-emerald">Guardar</button>
+                    <button type="button" onclick="closeModal('productModal')" class="btn btn-gray">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- VENTA MODAL (similar) -->
+    <div id="ventaModal" class="modal hidden">...</div>
+
+    <!-- EDIT MODAL -->
+    <div id="editModal" class="modal hidden">...</div>
+
+    <!-- SDKs -->
     <script src="https://cdn.jsdelivr.net/npm/appwrite@14.0.1/dist/iife/sdk.bundle.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -101,3 +230,4 @@
     <script src="script.js"></script>
 </body>
 </html>
+
