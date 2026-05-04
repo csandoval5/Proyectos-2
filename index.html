@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Taller de Motos - Inventario Appwrite</title>
+    <title>Taller de Motos - Inventario Pro | Appwrite</title>
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,220 +12,336 @@
     <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
 </head>
 <body>
-    <!-- LOGIN SCREEN -->
-    <div class="login-screen" id="loginScreen">
-        <div class="login-card">
-            <div class="login-brand">
-                <div class="login-icon"><i class="fas fa-motorcycle"></i></div>
-                <div>
-                    <h1>Ingreso Taller</h1>
-                    <p>Accede con tu cuenta Appwrite (Admin/Mecanico)</p>
-                </div>
+    <!-- SIDEBAR PROFILE INTEGRATED -->
+    <aside class="sidebar-profile">
+        <div class="profile-card">
+            <div class="avatar"><i class="fas fa-user"></i></div>
+            <div>
+                <h3 id="userName">Usuario</h3>
+                <span id="userRole" class="role-badge">Admin</span>
             </div>
-            <form id="loginForm" class="login-form">
-                <label for="loginEmail">Correo electrónico</label>
-                <input type="email" id="loginEmail" required placeholder="usuario@taller.com">
-                <label for="loginPassword">Contraseña</label>
-                <input type="password" id="loginPassword" required placeholder="Contraseña">
-                <button type="submit" class="btn btn-primary w-full">Ingresar</button>
-                <p class="login-note">Requiere equipo Admin o Mecánico.</p>
-            </form>
+            <button id="btnLogout" class="btn-logout"><i class="fas fa-sign-out-alt"></i></button>
         </div>
-    </div>
-
-    <!-- MAIN APP -->
-    <div class="app hidden" id="appWrapper">
-        <header class="main-header">
-            <div class="brand">
-                <div class="brand-icon"><i class="fas fa-motorcycle"></i></div>
-                <div>
-                    <h1>Taller de Motos</h1>
-                    <p>Inventario Completo + Roles Appwrite</p>
-                </div>
-            </div>
-            <div class="header-actions">
-                <div class="user-info">
-                    <span id="userName">Usuario</span>
-                    <span id="userRole">Rol</span>
-                </div>
-                <button id="btnLogout" class="btn btn-secondary"><i class="fas fa-sign-out-alt"></i> Cerrar sesión</button>
-            </div>
-        </header>
-
-        <!-- DASHBOARD CARDS -->
-        <section class="overview-grid">
-            <article class="card">
-                <div class="card-title">Productos</div>
-                <div class="card-value" id="totalProducts">0</div>
-            </article>
-            <article class="card">
-                <div class="card-title">Stock Total</div>
-                <div class="card-value" id="totalStock">0</div>
-            </article>
-            <article class="card">
-                <div class="card-title">Bajo Stock</div>
-                <div class="card-value" id="lowStockCount">0</div>
-            </article>
-            <article class="card admin-only">
-                <div class="card-title">Valor Inventario</div>
-                <div class="card-value" id="inventoryValue">$0</div>
-            </article>
-            <article class="card">
-                <div class="card-title">Clientes</div>
-                <div class="card-value" id="totalClientes">0</div>
-            </article>
-            <article class="card">
-                <div class="card-title">Ventas</div>
-                <div class="card-value" id="totalVentas">0</div>
-            </article>
-            <article class="card">
-                <div class="card-title">Ingresos</div>
-                <div class="card-value" id="totalIngresos">$0</div>
-            </article>
-        </section>
-
-        <!-- CONTROLS -->
-        <section class="panel-actions">
-            <div class="search-box">
-                <i class="fas fa-search"></i>
-                <input type="text" id="globalSearch" placeholder="Buscar en todo...">
-            </div>
-            <div class="button-group">
-                <button id="btnExportExcel" class="btn btn-secondary admin-only"><i class="fas fa-file-excel"></i> Exportar Excel</button>
-                <button id="btnImportExcel" class="btn btn-secondary"><i class="fas fa-file-import"></i> Importar</button>
-                <button id="btnReload" class="btn btn-secondary"><i class="fas fa-sync-alt"></i> Recargar</button>
-            </div>
-            <input type="file" id="excelInput" accept=".xlsx" style="display:none">
-        </section>
-
-        <!-- TABS NAV -->
-        <nav class="tab-nav">
-            <button class="tab-btn active" onclick="showTab('productos')">
-                <i class="fas fa-box"></i> Productos <span class="badge" id="badgeProductos">0</span>
-            </button>
-            <button class="tab-btn" onclick="showTab('clientes')">
-                <i class="fas fa-users"></i> Clientes <span class="badge" id="badgeClientes">0</span>
-            </button>
-            <button class="tab-btn" onclick="showTab('ventas')">
-                <i class="fas fa-receipt"></i> Ventas <span class="badge" id="badgeVentas">0</span>
-            </button>
-            <button class="tab-btn admin-only" onclick="showTab('reportes')">
-                <i class="fas fa-chart-pie"></i> Reportes
-            </button>
+        <nav class="quick-actions">
+            <button id="btnReload" class="quick-btn"><i class="fas fa-sync-alt"></i></button>
+            <button id="btnExportExcel" class="quick-btn admin-only"><i class="fas fa-file-excel"></i></button>
         </nav>
+    </aside>
 
-        <!-- TABS CONTENT -->
-        <main class="main-content">
-            <!-- PRODUCTOS TAB -->
-            <div id="productos" class="tab-content active">
-                <div class="grid-2">
-                    <!-- FORM PRODUCTO -->
-                    <div class="card form-card">
-                        <div class="card-header">
-                            <h2 id="formTitleProd">Nuevo Producto</h2>
-                        </div>
-                        <form id="productForm">
-                            <div class="form-group"><label>Código</label><input id="productCodigo" required></div>
-                            <div class="form-group"><label>Nombre *</label><input id="productNombre" required></div>
-                            <div class="form-row">
-                                <div class="form-group"><label>Precio $</label><input type="number" id="productPrecio" step="0.01" required></div>
-                                <div class="form-group"><label>Cantidad</label><input type="number" id="productCantidad" min="0" required></div>
-                            </div>
-                            <div class="form-group"><label>Stock Mínimo</label><input type="number" id="productStockMin" value="5"></div>
-                            <button type="submit" class="btn btn-primary w-full">Guardar Producto</button>
-                        </form>
+    <!-- MAIN CONTENT -->
+    <main class="main-container">
+        <!-- LOGIN SCREEN -->
+        <div class="login-overlay" id="loginScreen">
+            <div class="login-card glass-card">
+                <div class="login-header">
+                    <i class="fas fa-motorcycle login-icon"></i>
+                    <h1>Ingreso Taller de Motos</h1>
+                    <p>Sistema de Inventario Appwrite</p>
+                </div>
+                <form id="loginForm" class="login-form">
+                    <div class="input-group">
+                        <label for="loginEmail">Correo</label>
+                        <input type="email" id="loginEmail" placeholder="admin@taller.com" required>
                     </div>
-                    <!-- TABLE PRODUCTOS -->
-                    <div class="card">
-                        <h3 class="card-title">Inventario</h3>
-                        <table class="data-table">
-                            <thead><tr><th>Código</th><th>Nombre</th><th>Precio</th><th>Cantidad</th><th>Stock Min</th><th>Acciones</th></tr></thead>
-                            <tbody id="productosBody"></tbody>
-                        </table>
+                    <div class="input-group">
+                        <label for="loginPassword">Contraseña</label>
+                        <input type="password" id="loginPassword" placeholder="••••••" required>
+                    </div>
+                    <button type="submit" class="btn btn-indigo w-full glow-hover">
+                        <i class="fas fa-sign-in-alt"></i> Ingresar
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- APP MAIN -->
+        <div class="app-content hidden" id="appWrapper">
+            <!-- HEADER BRAND -->
+            <header class="app-header">
+                <div class="brand">
+                    <i class="fas fa-motorcycle brand-icon"></i>
+                    <h1>Taller de Motos Pro</h1>
+                </div>
+                <div class="search-global">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="globalSearch" placeholder="Buscar productos, clientes...">
+                </div>
+            </header>
+
+            <!-- DASHBOARD STATISTICS - ENHANCED -->
+            <section class="dashboard-stats">
+                <div class="stat-card emerald">
+                    <div class="stat-icon"><i class="fas fa-boxes-stacked"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-label">Productos</div>
+                        <div class="stat-value" id="totalProducts">0</div>
+                        <div class="stat-trend positive"><i class="fas fa-arrow-up"></i> +12%</div>
                     </div>
                 </div>
-            </div>
-
-            <!-- CLIENTES TAB (similar structure) -->
-            <div id="clientes" class="tab-content">
-                <!-- Form + Table for clientes -->
-                <div class="grid-2">
-                    <div class="card form-card">
-                        <form id="clienteForm">
-                            <div class="form-group"><label>Nombre *</label><input id="clienteNombre" required></div>
-                            <div class="form-group"><label>Teléfono *</label><input id="clienteTelefono" required></div>
-                            <div class="form-group"><label>Dirección</label><input id="clienteDireccion"></div>
-                            <div class="form-group"><label>Moto</label><input id="clienteMoto"></div>
-                            <button type="submit" class="btn btn-primary w-full">Guardar Cliente</button>
-                        </form>
-                    </div>
-                    <div class="card">
-                        <h3>Lista Clientes</h3>
-                        <table class="data-table">
-                            <thead><tr><th>Nombre</th><th>Teléfono</th><th>Dirección</th><th>Moto</th><th>Acciones</th></tr></thead>
-                            <tbody id="clientesBody"></tbody>
-                        </table>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-warehouse"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-label">Stock Total</div>
+                        <div class="stat-value" id="totalStock">0</div>
+                        <div class="stat-trend positive"><i class="fas fa-arrow-up"></i> +8%</div>
                     </div>
                 </div>
-            </div>
+                <div class="stat-card amber">
+                    <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-label">Bajo Stock</div>
+                        <div class="stat-value" id="lowStockCount">0</div>
+                        <div class="stat-trend negative"><i class="fas fa-arrow-down"></i> -3</div>
+                    </div>
+                </div>
+                <div class="stat-card admin-only indigo">
+                    <div class="stat-icon"><i class="fas fa-dollar-sign"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-label">Valor Inventario</div>
+                        <div class="stat-value" id="inventoryValue">$0</div>
+                        <div class="stat-trend positive"><i class="fas fa-arrow-up"></i> +15%</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-users"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-label">Clientes</div>
+                        <div class="stat-value" id="totalClientes">0</div>
+                        <div class="stat-trend positive"><i class="fas fa-arrow-up"></i> +5%</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-receipt"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-label">Ventas</div>
+                        <div class="stat-value" id="totalVentas">0</div>
+                        <div class="stat-trend positive"><i class="fas fa-arrow-up"></i> +22%</div>
+                    </div>
+                </div>
+                <div class="stat-card emerald">
+                    <div class="stat-icon"><i class="fas fa-coins"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-label">Ingresos</div>
+                        <div class="stat-value" id="totalIngresos">$0</div>
+                        <div class="stat-trend positive"><i class="fas fa-arrow-up"></i> +18%</div>
+                    </div>
+                </div>
+            </section>
 
-            <!-- VENTAS TAB -->
-            <div id="ventas" class="tab-content">
-                <div class="grid-2">
-                    <!-- FORM VENTA -->
-                    <div class="card form-card">
-                        <div class="card-header">
-                            <h2 id="formTitleVenta">Nueva Venta</h2>
-                        </div>
-                        <form id="ventaForm">
-                            <div class="form-group">
-                                <label>Cliente</label>
-                                <select id="ventaCliente" required>
-                                    <option value="">Seleccionar cliente...</option>
-                                </select>
+            <!-- TABS NAVIGATION - MODERN -->
+            <nav class="tabs-nav">
+                <button class="tab-btn active" onclick="showTab('productos')">
+                    <i class="fas fa-box"></i>
+                    <span>Productos</span>
+                    <span class="badge" id="badgeProductos">0</span>
+                </button>
+                <button class="tab-btn" onclick="showTab('clientes')">
+                    <i class="fas fa-users"></i>
+                    <span>Clientes</span>
+                    <span class="badge" id="badgeClientes">0</span>
+                </button>
+                <button class="tab-btn" onclick="showTab('ventas')">
+                    <i class="fas fa-receipt"></i>
+                    <span>Ventas</span>
+                    <span class="badge" id="badgeVentas">0</span>
+                </button>
+                <button class="tab-btn admin-only" onclick="showTab('reportes')">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Reportes</span>
+                </button>
+            </nav>
+
+            <!-- TAB CONTENTS -->
+            <section class="tab-panels">
+                <!-- PRODUCTOS -->
+                <div id="productos" class="tab-panel active">
+                    <div class="content-grid">
+                        <!-- FORM -->
+                        <div class="panel-card form-panel">
+                            <div class="panel-header">
+                                <i class="fas fa-plus-circle"></i>
+                                <h2 id="formTitleProd">Nuevo Producto</h2>
                             </div>
-                            <div class="form-group">
-                                <label>Producto</label>
-                                <select id="ventaProducto" required>
-                                    <option value="">Seleccionar producto...</option>
-                                </select>
-                            </div>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label>Cantidad</label>
-                                    <input type="number" id="ventaCantidad" min="1" required>
+                            <form id="productForm">
+                                <div class="input-group floating">
+                                    <input id="productCodigo" required>
+                                    <label>Código</label>
                                 </div>
-                                <div class="form-group">
-                                    <label>Total $</label>
-                                    <input type="number" id="ventaTotal" step="0.01" readonly>
+                                <div class="input-group floating">
+                                    <input id="productNombre" required>
+                                    <label>Nombre *</label>
                                 </div>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-full">Registrar Venta</button>
-                        </form>
-                    </div>
-                    <!-- TABLE VENTAS -->
-                    <div class="card">
-                        <h3>Historial de Ventas</h3>
-                        <table class="data-table">
-                            <thead><tr><th>Cliente</th><th>Producto</th><th>Cantidad</th><th>Total</th><th>Fecha</th><th>Acciones</th></tr></thead>
-                            <tbody id="ventasBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+                                <div class="input-row">
+                                    <div class="input-group floating">
+                                        <input type="number" id="productPrecio" step="0.01" required>
+                                        <label>Precio $</label>
+                                    </div>
+                                    <div class="input-group floating">
+                                        <input type="number" id="productCantidad" min="0" required>
+                                        <label>Cantidad</label>
+                                    </div>
+                                </div>
+                                <div class="input-group floating">
+                                    <input type="number" id="productStockMin" value="5">
+                                    <label>Stock Mínimo</label>
+                                </div>
+                                <button type="submit" class="btn btn-indigo w-full glow-hover">
+                                    <i class="fas fa-save"></i> Guardar Producto
+                                </button>
+                            </form>
+                        </div>
 
-            <!-- REPORTES TAB -->
-            <div id="reportes" class="tab-content">
-                <div class="reports-grid">
-                    <!-- More cards + chart -->
+                        <!-- TABLE GLASS -->
+                        <div class="panel-card table-panel">
+                            <div class="panel-header">
+                                <i class="fas fa-list"></i>
+                                <h2>Inventario Actual</h2>
+                            </div>
+                            <div class="table-container">
+                                <table class="glass-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Código</th>
+                                            <th>Nombre</th>
+                                            <th>Precio</th>
+                                            <th>Cantidad</th>
+                                            <th>Stock Min</th>
+                                            <th>Estado</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="productosBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <canvas id="graficoVentas"></canvas>
-            </div>
-        </main>
-    </div>
+
+                <!-- CLIENTES (similar) -->
+                <div id="clientes" class="tab-panel">
+                    <div class="content-grid">
+                        <div class="panel-card form-panel">
+                            <div class="panel-header">
+                                <i class="fas fa-user-plus"></i>
+                                <h2>Nuevo Cliente</h2>
+                            </div>
+                            <form id="clienteForm">
+                                <div class="input-group floating">
+                                    <input id="clienteNombre" required>
+                                    <label>Nombre *</label>
+                                </div>
+                                <div class="input-group floating">
+                                    <input id="clienteTelefono" required>
+                                    <label>Teléfono *</label>
+                                </div>
+                                <div class="input-group floating">
+                                    <input id="clienteDireccion">
+                                    <label>Dirección</label>
+                                </div>
+                                <div class="input-group floating">
+                                    <input id="clienteMoto">
+                                    <label>Modelo Moto</label>
+                                </div>
+                                <button type="submit" class="btn btn-indigo w-full glow-hover">
+                                    <i class="fas fa-save"></i> Guardar Cliente
+                                </button>
+                            </form>
+                        </div>
+                        <div class="panel-card table-panel">
+                            <div class="panel-header">
+                                <i class="fas fa-users"></i>
+                                <h2>Lista Clientes</h2>
+                            </div>
+                            <div class="table-container">
+                                <table class="glass-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Nombre</th>
+                                            <th>Teléfono</th>
+                                            <th>Dirección</th>
+                                            <th>Moto</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="clientesBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VENTAS -->
+                <div id="ventas" class="tab-panel">
+                    <div class="content-grid">
+                        <div class="panel-card form-panel">
+                            <div class="panel-header">
+                                <i class="fas fa-cash-register"></i>
+                                <h2 id="formTitleVenta">Nueva Venta</h2>
+                            </div>
+                            <form id="ventaForm">
+                                <div class="input-group floating">
+                                    <select id="ventaCliente" required>
+                                        <option value="">Seleccionar...</option>
+                                    </select>
+                                    <label>Cliente</label>
+                                </div>
+                                <div class="input-group floating">
+                                    <select id="ventaProducto" required>
+                                        <option value="">Seleccionar...</option>
+                                    </select>
+                                    <label>Producto</label>
+                                </div>
+                                <div class="input-row">
+                                    <div class="input-group floating">
+                                        <input type="number" id="ventaCantidad" min="1" required>
+                                        <label>Cantidad</label>
+                                    </div>
+                                    <div class="input-group floating">
+                                        <input type="number" id="ventaTotal" step="0.01" readonly>
+                                        <label>Total $</label>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-emerald w-full glow-hover">
+                                    <i class="fas fa-receipt"></i> Registrar Venta
+                                </button>
+                            </form>
+                        </div>
+                        <div class="panel-card table-panel">
+                            <div class="panel-header">
+                                <i class="fas fa-history"></i>
+                                <h2>Historial Ventas</h2>
+                            </div>
+                            <div class="table-container">
+                                <table class="glass-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Cliente</th>
+                                            <th>Producto</th>
+                                            <th>Cant.</th>
+                                            <th>Total</th>
+                                            <th>Fecha</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ventasBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- REPORTES -->
+                <div id="reportes" class="tab-panel">
+                    <div class="chart-container">
+                        <canvas id="graficoVentas"></canvas>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
 
     <!-- CDNs -->
-    <script src="https://cdn.jsdelivr.net/npm/appwrite@12.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/appwrite@15.0.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
