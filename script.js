@@ -96,7 +96,7 @@ async function checkSession() {
       console.warn('⚠️ Error teams.list():', teamsErr.message, '- Usando rol default "admin"');
     }
     
-    ::currentRole:: = currentRole; // Global
+    currentRole = currentRole; // Global
     
     userNameEl.textContent = currentUser.name || currentUser.email;
     userRoleEl.textContent = currentRole.charAt(0).toUpperCase() + currentRole.slice(1);
@@ -375,7 +375,7 @@ window.editItem = function(id, collection, data) {
 
 window.showTab = function(tabName) {
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+document.querySelectorAll('.tab-panel').forEach(content => content.classList.remove('active'));
   document.getElementById(tabName)?.classList.add('active');
   
   const activeBtn = Array.from(document.querySelectorAll('.tab-btn')).find(btn => 
@@ -549,16 +549,18 @@ function bindEvents() {
   
   // Delegation: Edit/Delete
   document.addEventListener('click', function(e) {
-    if (e.target.matches('.btn-edit')) {
-      const id = e.target.closest('.btn-edit').dataset.id;
-      const type = e.target.closest('.btn-edit').dataset.type;
-      const dataStr = e.target.closest('.btn-edit').dataset.data.replace(/"/g, '"');
+    if (e.target.matches('.action-edit, .btn-edit')) {
+      const btn = e.target.closest('.action-edit, .btn-edit');
+      const id = btn.dataset.id;
+      const type = btn.dataset.type;
+      const dataStr = btn.dataset.data.replace(/"/g, '"');
       const data = JSON.parse(dataStr);
       editItem(id, type, data);
     }
-    if (e.target.matches('.delete-btn')) {
-      const id = e.target.closest('.delete-btn').dataset.id;
-      const type = e.target.closest('.delete-btn').dataset.type;
+    if (e.target.matches('.action-delete, .delete-btn')) {
+      const btn = e.target.closest('.action-delete, .delete-btn');
+      const id = btn.dataset.id;
+      const type = btn.dataset.type;
       deleteItem(id, type, type === APPWRITE_VENTAS);
     }
   });
