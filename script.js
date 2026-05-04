@@ -21,7 +21,7 @@ client.setEndpoint(APPWRITE_ENDPOINT).setProject(APPWRITE_PROJECT);
 const account = new Appwrite.Account(client);
 const teams = new Appwrite.Teams(client);
 const database = new Appwrite.Databases(client);
-const ID = new Appwrite.ID();
+const ID = new Appwrite.IDs(client);
 
 let currentUser = null;
 let currentRole = null;
@@ -80,6 +80,18 @@ function validateFormData(type, data) {
 
 // ===== AUTH - FIXED PER USER SPECS =====
 async function checkSession() {
+  // SEGURIDAD APPWRITE LOADED
+  if (typeof Appwrite === 'undefined') {
+    console.error('❌ Appwrite SDK no cargó - CDN bloqueado');
+    Swal.fire({
+      title: 'Error Appwrite',
+      text: 'No se pudo cargar la librería Appwrite. Verifica conexión o bloqueadores de anuncios. Intenta deshabilitar AdBlock.',
+      icon: 'error',
+      confirmButtonText: 'Recargar página'
+    });
+    return;
+  }
+  
   try {
     console.log('🔍 Verificando sesión...');
     currentUser = await account.get();
