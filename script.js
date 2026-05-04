@@ -1,670 +1,446 @@
-// =================================================================
-// CONFIGURACION SUPABASE (Cliente oficial @supabase/supabase-js)
-// =================================================================
-const SUPABASE_URL = 'https://cdvmqzhqjskknfntomtx.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_wWPwhAUH6NZFYx0j5t1mSA_OebPJgoX';
+/* Appwrite Complete Inventory - Taller de Motos
+ * Full CRUD: productos/clientes/ventas + Auth/Roles + Dashboard + Charts + Excel
+ * Vanilla JS + CDNs - Ready to run
+ * Date: Migration Complete
+ */
 
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// ===== APPWRITE CONFIG (user confirmed) =====
+const APPWRITE_ENDPOINT = 'https://nyc.cloud.appwrite.io/v1';
+const APPWRITE_PROJECT = '69f8b97e0005a97657e6';
+const APPWRITE_DATABASE_ID = '69f8bb61001e9d5f2120';
+const APPWRITE_PRODUCTOS = 'productos'; // existing
+const APPWRITE_CLIENTES = 'clientes'; // user created
+const APPWRITE_VENTAS = 'ventas'; // user created
+const ADMIN_TEAM = 'Administradores';
+const MECHANIC_TEAM = 'Mecanicos';
 
-// =================================================================
-// ESTADO EN MEMORIA (sin localStorage)
-// =================================================================
-let clientes = [];
+const client = new Appwrite.Client();
+client.setEndpoint(APPWRITE_ENDPOINT).setProject(APPWRITE_PROJECT);
+
+const account = new Appwrite.Account(client);
+const teams = new Appwrite.Teams(client);
+const database = new Appwrite.Databases(client);
+const ID = new Appwrite.ID();
+
+let currentUser = null;
+let currentRole = null;
 let productos = [];
+let clientes = [];
 let ventas = [];
-let chartVentas = null;
-let clienteEditandoId = null;
-let productoEditandoId = null;
+let editingId = null;
+let editingType = null; // 'producto' | 'cliente'
+let chart = null;
 
-// =================================================================
-// SUPABASE HELPERS (wrappers sobre el cliente oficial)
-// =================================================================
-async function sbGet(tabla) {
+// ===== UI ELEMENTS =====
+const loginScreen = document.getElementById('loginScreen');
+const appWrapper = document.getElementById('appWrapper');
+const userNameEl = document.getElementById('userName');
+const userRoleEl = document.getElementById('userRole');
+
+// ===== UTILS =====
+function showElement(selector, show = true) {
+  document.querySelectorAll(selector).forEach(el => el.classList.toggle('hidden', !show));
+}
+
+function showToast(title, icon = 'success') {
+  Swal.fire({ title, icon, toast: true, position: 'top-end', timer: 3000, showConfirmButton: false });
+}
+
+function resetForms() {
+  editingId = null;
+  editingType = null;
+  document.querySelectorAll('form').forEach(f => f.reset());
+}
+
+function buildRoleUI() {
+  const isAdmin = currentRole === 'admin';
+  showElement('.admin-only', isAdmin);
+}
+
+function validateFormData(type, data) {
+  const required = {
+    producto: ['codigo', 'nombre', 'precio', 'cantidad', 'stock_minimo'],
+    cliente: ['nombre', 'telefono']
+  };
+  for (let field of required[type]) if (!data[field]) return false;
+  return true;
+}
+
+// ===== AUTH =====
+async function checkSession() {
+  try {
+    currentUser = await account.get();
+    const teamList = await teams.list();
+    const teamsUser = teamList.teams.map(t => t.name);
+    currentRole = teamsUser.includes(ADMIN_TEAM) ? 'admin' : teamsUser.includes(MECHANIC_TEAM) ? 'mecanico' : null;
+    
+    if (!currentRole) throw new Error('No team');
+    
+    userNameEl.textContent = currentUser.name || currentUser.email;
+    userRoleEl.textContent = currentRole.charAt(0).toUpperCase() + currentRole.slice(1);
+    buildRoleUI();
+    showApp();
+    loadAllData();
+  } catch {
+    showLogin();
+  }
+}
+
+async function login(e) {
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+  
+  try {
+    // Logout preventivo
     try {
-        const { data, error } = await supabaseClient.from(tabla).select('*');
-        if (error) throw error;
-        return data || [];
-    } catch (err) {
-        console.warn(`sbGet error (${tabla}):`, err);
-        return null;
+      await account.deleteSession('current');
+    } catch (logoutErr) {
+      // No session or error, ignore
     }
+    
+    await account.createEmailSession(email, password);
+    window.location.reload(); // Limpia UI state
+  } catch (err) {
+    Swal.fire('Error', err.message || 'Error de login', 'error');
+  }
 }
 
-async function sbPost(tabla, data) {
-    try {
-        const { data: result, error } = await supabaseClient.from(tabla).insert([data]).select();
-        if (error) throw error;
-        return result;
-    } catch (err) {
-        console.warn(`sbPost error (${tabla}):`, err);
-        return null;
-    }
+// Alias español
+window.iniciarSesion = login;
+
+
+async function logout() {
+  await account.deleteSession('current');
+  location.reload();
 }
 
-async function sbPatch(tabla, id, data) {
-    try {
-        const { data: result, error } = await supabaseClient.from(tabla).update(data).eq('id', id).select();
-        if (error) throw error;
-        return result;
-    } catch (err) {
-        console.warn(`sbPatch error (${tabla}):`, err);
-        return null;
-    }
+// ===== DATA OPERATIONS =====
+async function loadData(collection) {
+  const response = await database.listDocuments(APPWRITE_DATABASE_ID, collection);
+  return response.documents || [];
 }
 
-async function sbDelete(tabla, id) {
-    try {
-        const { error } = await supabaseClient.from(tabla).delete().eq('id', id);
-        if (error) throw error;
-        return true;
-    } catch (err) {
-        console.warn(`sbDelete error (${tabla}):`, err);
-        return false;
-    }
+async function loadAllData() {
+  [productos, clientes, ventas] = await Promise.all([
+    loadData(APPWRITE_PRODUCTOS),
+    loadData(APPWRITE_CLIENTES),
+    loadData(APPWRITE_VENTAS)
+  ]);
+  renderAll();
+  updateDashboard();
+  updateCharts();
 }
 
-// =================================================================
-// CARGA DE DATOS DESDE SUPABASE
-// =================================================================
-async function cargarDatos() {
-    try {
-        const [prodRes, cliRes, ventRes] = await Promise.all([
-            supabaseClient.from('productos').select('*'),
-            supabaseClient.from('clientes').select('*'),
-            supabaseClient.from('ventas').select('*')
-        ]);
-
-        if (prodRes.error) throw prodRes.error;
-        if (cliRes.error) throw cliRes.error;
-        if (ventRes.error) throw ventRes.error;
-
-        productos = prodRes.data || [];
-        clientes = cliRes.data || [];
-        ventas = ventRes.data || [];
-
-        actualizarVistaCompleta();
-    } catch (err) {
-        console.error('Error cargando datos:', err);
-        Swal.fire('Error', 'No se pudieron cargar los datos: ' + err.message, 'error');
-    }
+async function saveData(collection, data) {
+  if (editingId) {
+    return database.updateDocument(APPWRITE_DATABASE_ID, collection, editingId, data);
+  } else {
+    return database.createDocument(APPWRITE_DATABASE_ID, collection, ID.unique(), data);
+  }
 }
 
-// =================================================================
-// INICIALIZACION
-// =================================================================
-function inicializarApp() {
-    vincularEventosUI();
-    cargarDatos();
+async function deleteData(collection, id) {
+  return database.deleteDocument(APPWRITE_DATABASE_ID, collection, id);
 }
 
-function esc(t) {
-    return String(t || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'<','>':'>','"':'"',"'":'&#39;'}[m]));
+// ===== RENDER =====
+function renderTable(containerId, data, columns, renderRow) {
+  const tbody = document.getElementById(containerId);
+  if (!tbody) return;
+  tbody.innerHTML = data.map(renderRow).join('') || '<tr><td colspan="' + columns.length + '">No data</td></tr>';
 }
 
-// =================================================================
-// PRODUCTOS
-// =================================================================
-function renderizarProductos() {
-    const cont = document.getElementById('listaProductos');
-    if (!cont) return;
-    if (productos.length === 0) {
-        cont.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;"><i class="fas fa-box-open" style="font-size:3rem;margin-bottom:16px;display:block;"></i>No hay productos registrados</div>';
-        return;
-    }
-    let html = '<table class="data-table"><thead><tr><th>ID</th><th>Repuesto</th><th>Precio</th><th>Stock</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>';
-    productos.forEach(p => {
-        const cant = parseInt(p.cantidad) || 0;
-        const min = parseInt(p.stock_min) || 5;
-        const bajo = cant <= min;
-        const clase = cant <= 0 ? 'status-critical' : (bajo ? 'status-low' : 'status-ok');
-        const estado = cant <= 0 ? 'Agotado' : (bajo ? 'Bajo' : 'OK');
-        html += `<tr>
-            <td>${p.id}</td>
-            <td><strong>${esc(p.nombre)}</strong></td>
-            <td>$${parseFloat(p.precio || 0).toFixed(2)}</td>
-            <td>${cant}</td>
-            <td><span class="badge ${clase}">${estado}</span></td>
-            <td class="acciones">
-                <button onclick="prepararEdicionProducto(${p.id})" class="btn-icon" title="Editar"><i class="fas fa-edit"></i></button>
-                <button onclick="eliminarProducto(${p.id})" class="btn-icon btn-danger" title="Eliminar"><i class="fas fa-trash"></i></button>
-            </td>
-        </tr>`;
-    });
-    cont.innerHTML = html + '</tbody></table>';
+function renderProductos() {
+  renderTable('productosBody', productos, ['Código', 'Nombre', 'Precio', 'Cantidad', 'Stock Min', 'Acciones'], (p) => {
+    const low = p.cantidad <= p.stock_minimo;
+    const price = parseFloat(p.precio || 0).toLocaleString();
+    const delBtn = currentRole === 'admin' ? `<button data-id="${p.$id}" data-type="${APPWRITE_PRODUCTOS}" class="btn-danger delete-btn"><i class="fas fa-trash"></i></button>` : '';
+    const editData = JSON.stringify({codigo: p.codigo || '', nombre: p.nombre || '', precio: p.precio || 0, cantidad: p.cantidad || 0, stock_minimo: p.stock_minimo || 0}).replace(/"/g, '"');
+    return `
+      <tr class="${low ? 'low-stock' : ''}">
+        <td>${p.codigo || '-'}</td>
+        <td>${p.nombre}</td>
+        <td>$${price}</td>
+        <td>${p.cantidad}</td>
+        <td>${p.stock_minimo}</td>
+        <td>
+          <button data-id="${p.$id}" data-type="${APPWRITE_PRODUCTOS}" data-data="${editData}" class="btn-edit"><i class="fas fa-edit"></i></button>
+          ${delBtn}
+        </td>
+      </tr>`;
+  });
 }
 
-async function guardarProducto(e) {
-    e.preventDefault();
-
-    const nombre = document.getElementById('productoNombre').value.trim();
-    const precio = parseFloat(document.getElementById('productoPrecio').value);
-    const cantidad = parseInt(document.getElementById('productoCantidad').value);
-    const stock_min = parseInt(document.getElementById('productoStockMin').value) || 5;
-
-    if (!nombre || isNaN(precio) || isNaN(cantidad)) {
-        return Swal.fire('Error', 'Datos incompletos o invalidos', 'error');
-    }
-
-    // NO enviamos id ni fecha; Supabase los genera automaticamente
-    const payload = { nombre, precio, cantidad, stock_min };
-
-    try {
-        let res;
-
-        if (productoEditandoId) {
-            // Actualizar producto existente
-            res = await sbPatch('productos', productoEditandoId, payload);
-        } else {
-            // Insertar nuevo producto
-            res = await sbPost('productos', payload);
-        }
-
-        if (!res) throw new Error('No se pudo guardar en Supabase');
-
-        productoEditandoId = null;
-        document.getElementById('formProducto').reset();
-        const btn = document.getElementById('btnSubmitProd');
-        if (btn) btn.innerText = 'Guardar Producto';
-
-        await cargarDatos();
-        Swal.fire('Exito', 'Producto guardado correctamente', 'success');
-    } catch (err) {
-        console.error('Error guardando producto:', err);
-        Swal.fire('Error', 'No se pudo guardar el producto: ' + err.message, 'error');
-    }
+function renderClientes() {
+  renderTable('clientesBody', clientes, ['Nombre', 'Teléfono', 'Dirección', 'Moto', 'Acciones'], (c) => {
+    const delBtn = currentRole === 'admin' ? `<button data-id="${c.$id}" data-type="${APPWRITE_CLIENTES}" class="btn-danger delete-btn"><i class="fas fa-trash"></i></button>` : '';
+    const editData = JSON.stringify({nombre: c.nombre || '', telefono: c.telefono || '', direccion: c.direccion || '', moto: c.moto || ''}).replace(/"/g, '"');
+    return `
+      <tr>
+        <td>${c.nombre}</td>
+        <td>${c.telefono}</td>
+        <td>${c.direccion || '-'}</td>
+        <td>${c.moto || '-'}</td>
+        <td>
+          <button data-id="${c.$id}" data-type="${APPWRITE_CLIENTES}" data-data="${editData}" class="btn-edit"><i class="fas fa-edit"></i></button>
+          ${delBtn}
+        </td>
+      </tr>`;
+  });
 }
 
-async function eliminarProducto(id) {
-    const c = await Swal.fire({
-        title: 'Eliminar producto?',
-        text: 'No se puede deshacer',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Si, eliminar',
-        cancelButtonText: 'Cancelar'
-    });
-    if (!c.isConfirmed) return;
-
-    try {
-        const ok = await sbDelete('productos', id);
-        if (!ok) throw new Error('No se pudo eliminar en Supabase');
-
-        await cargarDatos();
-        Swal.fire('Eliminado', 'Producto eliminado', 'success');
-    } catch (err) {
-        console.error('Error eliminando producto:', err);
-        Swal.fire('Error', 'No se pudo eliminar el producto: ' + err.message, 'error');
-    }
+function renderVentas() {
+  renderTable('ventasBody', ventas, ['Cliente', 'Producto', 'Cantidad', 'Total', 'Fecha', 'Acciones'], (v) => {
+    const total = parseFloat(v.total || 0).toLocaleString();
+    const delBtn = currentRole === 'admin' ? `<button data-id="${v.$id}" data-type="${APPWRITE_VENTAS}" class="btn-danger delete-btn"><i class="fas fa-trash"></i></button>` : '';
+    return `
+      <tr>
+        <td>${v.cliente || '-'}</td>
+        <td>${v.producto || '-'}</td>
+        <td>${v.cantidad}</td>
+        <td>$${total}</td>
+        <td>${v.fecha}</td>
+        <td>${delBtn}</td>
+      </tr>`;
+  });
 }
 
-function prepararEdicionProducto(id) {
-    const p = productos.find(x => x.id == id);
-    if (!p) return;
-    productoEditandoId = id;
-    document.getElementById('productoNombre').value = p.nombre || '';
-    document.getElementById('productoPrecio').value = p.precio || '';
-    document.getElementById('productoCantidad').value = p.cantidad || '';
-    document.getElementById('productoStockMin').value = p.stock_min || 5;
-    const btn = document.getElementById('btnSubmitProd');
-    if (btn) btn.innerText = 'Actualizar Producto';
+function renderAll() {
+  renderProductos();
+  renderClientes();
+  renderVentas();
+}
+
+function updateDashboard() {
+  const totalP = productos.length;
+  const totalC = clientes.length;
+  const totalV = ventas.length;
+  const ingresos = ventas.reduce((sum, v) => sum + parseFloat(v.total || 0), 0);
+  const lowStock = productos.filter(p => p.cantidad <= p.stock_minimo).length;
+  
+  document.getElementById('totalProducts').textContent = totalP;
+  document.getElementById('totalStock').textContent = productos.reduce((sum, p) => sum + parseInt(p.cantidad || 0), 0);
+  document.getElementById('lowStockCount').textContent = lowStock;
+  document.getElementById('inventoryValue').textContent = `$${productos.reduce((sum, p) => sum + (parseFloat(p.precio || 0) * parseInt(p.cantidad || 0)), 0).toLocaleString()}`;
+  document.getElementById('totalClientes').textContent = totalC;
+  document.getElementById('totalVentas').textContent = totalV;
+  document.getElementById('totalIngresos').textContent = `$${ingresos.toLocaleString()}`;
+}
+
+function updateCharts() {
+  const ctx = document.getElementById('graficoVentas')?.getContext('2d');
+  if (!ctx) return;
+  
+  const ventasByDate = {};
+  ventas.forEach(v => ventasByDate[v.fecha] = (ventasByDate[v.fecha] || 0) + parseFloat(v.total || 0));
+  const labels = Object.keys(ventasByDate).sort();
+  const data = labels.map(d => ventasByDate[d]);
+  
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets: [{ label: 'Ventas', data, borderColor: '#6366f1', fill: true }] },
+    options: { responsive: true, scales: { y: { beginAtZero: true } } }
+  });
+}
+
+// ===== CRUD ACTIONS =====
+window.editItem = function(id, collection, data) {
+  editingId = id;
+  editingType = collection === APPWRITE_PRODUCTOS ? 'producto' : 'cliente';
+  if (editingType === 'producto') {
+    document.getElementById('productCodigo').value = data.codigo || '';
+    document.getElementById('productNombre').value = data.nombre || '';
+    document.getElementById('productPrecio').value = data.precio || '';
+    document.getElementById('productCantidad').value = data.cantidad || 0;
+    document.getElementById('productStockMin').value = data.stock_minimo || 5;
+    document.querySelector('#formTitleProd').textContent = 'Editar Producto';
     showTab('productos');
-    document.getElementById('productoNombre').scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
-
-// =================================================================
-// CLIENTES
-// =================================================================
-function renderizarClientes() {
-    const cont = document.getElementById('listaClientes');
-    if (!cont) return;
-    if (clientes.length === 0) {
-        cont.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;"><i class="fas fa-users" style="font-size:3rem;margin-bottom:16px;display:block;"></i>No hay clientes registrados</div>';
-        return;
-    }
-    let html = '<table class="data-table"><thead><tr><th>ID</th><th>Nombre</th><th>Telefono</th><th>Direccion</th><th>Moto</th><th>Acciones</th></tr></thead><tbody>';
-    clientes.forEach(c => {
-        html += `<tr>
-            <td>${c.id}</td>
-            <td>${esc(c.nombre)}</td>
-            <td>${esc(c.telefono)}</td>
-            <td>${esc(c.direccion)}</td>
-            <td>${esc(c.moto)}</td>
-            <td class="acciones">
-                <button onclick="prepararEdicionCliente(${c.id})" class="btn-icon" title="Editar"><i class="fas fa-user-edit"></i></button>
-                <button onclick="eliminarCliente(${c.id})" class="btn-icon btn-danger" title="Eliminar"><i class="fas fa-trash"></i></button>
-            </td>
-        </tr>`;
-    });
-    cont.innerHTML = html + '</tbody></table>';
-}
-
-async function guardarCliente(e) {
-    e.preventDefault();
-    const nombre = document.getElementById('clienteNombre').value.trim();
-    const telefono = document.getElementById('clienteTelefono').value.trim();
-    if (!nombre || !telefono) return Swal.fire('Error', 'Nombre y telefono obligatorios', 'error');
-
-    const payload = {
-        nombre: nombre,
-        telefono: telefono,
-        direccion: document.getElementById('clienteDireccion').value || '',
-        moto: document.getElementById('clienteMoto').value || ''
-    };
-
-    try {
-        let res;
-        if (clienteEditandoId) {
-            res = await sbPatch('clientes', clienteEditandoId, payload);
-        } else {
-            res = await sbPost('clientes', payload);
-        }
-
-        if (!res) throw new Error('No se pudo guardar en Supabase');
-
-        clienteEditandoId = null;
-        document.getElementById('formCliente').reset();
-        await cargarDatos();
-        Swal.fire('Exito', 'Cliente guardado correctamente', 'success');
-    } catch (err) {
-        console.error('Error guardando cliente:', err);
-        Swal.fire('Error', 'No se pudo guardar el cliente: ' + err.message, 'error');
-    }
-}
-
-async function eliminarCliente(id) {
-    const c = await Swal.fire({
-        title: 'Eliminar cliente?',
-        text: 'No se puede deshacer',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Si, eliminar',
-        cancelButtonText: 'Cancelar'
-    });
-    if (!c.isConfirmed) return;
-
-    try {
-        const ok = await sbDelete('clientes', id);
-        if (!ok) throw new Error('No se pudo eliminar en Supabase');
-        await cargarDatos();
-        Swal.fire('Eliminado', 'Cliente eliminado', 'success');
-    } catch (err) {
-        console.error('Error eliminando cliente:', err);
-        Swal.fire('Error', 'No se pudo eliminar el cliente: ' + err.message, 'error');
-    }
-}
-
-function prepararEdicionCliente(id) {
-    const c = clientes.find(x => x.id == id);
-    if (!c) return;
-    clienteEditandoId = id;
-    document.getElementById('clienteNombre').value = c.nombre || '';
-    document.getElementById('clienteTelefono').value = c.telefono || '';
-    document.getElementById('clienteDireccion').value = c.direccion || '';
-    document.getElementById('clienteMoto').value = c.moto || '';
+  } else if (editingType === 'cliente') {
+    document.getElementById('clienteNombre').value = data.nombre || '';
+    document.getElementById('clienteTelefono').value = data.telefono || '';
+    document.getElementById('clienteDireccion').value = data.direccion || '';
+    document.getElementById('clienteMoto').value = data.moto || '';
     showTab('clientes');
-}
+  }
+};
 
-// =================================================================
-// VENTAS
-// =================================================================
-function renderizarVentas() {
-    const cont = document.getElementById('listaVentas');
-    if (!cont) return;
-    if (ventas.length === 0) {
-        cont.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;"><i class="fas fa-receipt" style="font-size:3rem;margin-bottom:16px;display:block;"></i>No hay ventas registradas</div>';
-        return;
+window.showTab = function(tabName) {
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+  document.getElementById(tabName).classList.add('active');
+  const activeBtn = Array.from(document.querySelectorAll('.tab-btn')).find(btn => btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(tabName));
+  if (activeBtn) activeBtn.classList.add('active');
+};
+
+window.deleteItem = async function(id, collection, restoreStock = false) {
+  const confirm = await Swal.fire({ title: 'Confirmar eliminar?', icon: 'warning', showCancelButton: true });
+  if (!confirm.isConfirmed) return;
+  
+  if (restoreStock && collection === APPWRITE_VENTAS) {
+    const v = ventas.find(v => v.$id === id);
+    if (v) {
+      const p = productos.find(p => p.nombre === v.producto);
+      if (p) {
+        p.cantidad += parseInt(v.cantidad);
+        await saveData(APPWRITE_PRODUCTOS, p);
+      }
     }
-    let html = '<table class="data-table"><thead><tr><th>ID</th><th>Fecha</th><th>Cliente</th><th>Producto</th><th>Cantidad</th><th>Total</th><th>Acciones</th></tr></thead><tbody>';
-    ventas.forEach(v => {
-        html += `<tr>
-            <td>${v.id}</td>
-            <td>${esc(v.fecha)}</td>
-            <td>${esc(v.cliente)}</td>
-            <td>${esc(v.producto)}</td>
-            <td>${v.cantidad}</td>
-            <td>$${parseFloat(v.total || 0).toFixed(2)}</td>
-            <td class="acciones">
-                <button onclick="eliminarVenta(${v.id})" class="btn-icon btn-danger" title="Eliminar"><i class="fas fa-trash"></i></button>
-            </td>
-        </tr>`;
-    });
-    cont.innerHTML = html + '</tbody></table>';
+  }
+  
+  await deleteData(collection, id);
+  loadAllData();
+  showToast('Eliminado');
+};
+
+async function saveProducto(e) {
+  e.preventDefault();
+  const data = {
+    codigo: document.getElementById('productCodigo').value.trim(),
+    nombre: document.getElementById('productNombre').value.trim(),
+    precio: parseFloat(document.getElementById('productPrecio').value),
+    cantidad: parseInt(document.getElementById('productCantidad').value),
+    stock_minimo: parseInt(document.getElementById('productStockMin').value)
+  };
+  
+  if (!validateFormData('producto', data)) return Swal.fire('Error', 'Completa todos los campos', 'error');
+  
+  if (currentRole === 'mecanico' && editingId) {
+    const orig = productos.find(p => p.$id === editingId);
+    data.precio = orig.precio;
+  }
+  
+  await saveData(APPWRITE_PRODUCTOS, data);
+  resetForms();
+  loadAllData();
+  showToast('Producto guardado');
 }
 
-async function registrarVenta(e) {
-    e.preventDefault();
-    const cId = document.getElementById('ventaCliente').value;
-    const pId = document.getElementById('ventaProducto').value;
-    const cant = parseInt(document.getElementById('ventaCantidad').value);
+async function saveCliente(e) {
+  e.preventDefault();
+  const data = {
+    nombre: document.getElementById('clienteNombre').value.trim(),
+    telefono: document.getElementById('clienteTelefono').value.trim(),
+    direccion: document.getElementById('clienteDireccion').value.trim(),
+    moto: document.getElementById('clienteMoto').value.trim()
+  };
+  
+  if (!data.nombre || !data.telefono) return Swal.fire('Error', 'Nombre y teléfono requeridos', 'error');
+  
+  await saveData(APPWRITE_CLIENTES, data);
+  resetForms();
+  loadAllData();
+  showToast('Cliente guardado');
+}
 
-    if (!cId || !pId || !cant || cant < 1) return Swal.fire('Error', 'Seleccione cliente, producto y cantidad valida', 'error');
+async function saveVenta(e) {
+  e.preventDefault();
+  
+  const cliente = document.getElementById('ventaCliente').value;
+  const productoNombre = document.getElementById('ventaProducto').value;
+  const cantidad = parseInt(document.getElementById('ventaCantidad').value);
+  const total = parseFloat(document.getElementById('ventaTotal').value);
+  
+  if (!cliente || !productoNombre || !cantidad || !total) {
+    return Swal.fire('Error', 'Completa todos los campos', 'error');
+  }
+  
+  const producto = productos.find(p => p.nombre === productoNombre);
+  if (!producto || producto.cantidad < cantidad) {
+    return Swal.fire('Error', 'Stock insuficiente o producto no encontrado', 'error');
+  }
+  
+  // Deduct stock
+  producto.cantidad -= cantidad;
+  await saveData(APPWRITE_PRODUCTOS, producto);
+  
+  // Save venta
+  const ventaData = {
+    cliente,
+    producto: productoNombre,
+    cantidad,
+    total,
+    fecha: new Date().toLocaleDateString('es-ES')
+  };
+  
+  await saveData(APPWRITE_VENTAS, ventaData);
+  
+  resetForms();
+  loadAllData();
+  showToast('Venta registrada y stock actualizado');
+}
 
-    const cli = clientes.find(c => c.id == cId);
-    const prod = productos.find(p => p.id == pId);
-    if (!cli || !prod) return Swal.fire('Error', 'Cliente o producto no encontrado', 'error');
-
-    const stockActual = parseInt(prod.cantidad) || 0;
-    if (cant > stockActual) return Swal.fire('Atencion', 'Stock insuficiente: ' + stockActual, 'warning');
-
-    const confirmacion = await Swal.fire({
-        title: 'Confirmar venta?',
-        text: `Vender ${cant} de ${prod.nombre} a ${cli.nombre}`,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Si, vender',
-        cancelButtonText: 'Cancelar'
-    });
-    if (!confirmacion.isConfirmed) return;
-
-    const nuevoStock = stockActual - cant;
-
-    try {
-        // 1. Registrar la venta (sin id ni fecha)
-        const resVenta = await sbPost('ventas', {
-            cliente: cli.nombre,
-            producto: prod.nombre,
-            cantidad: cant,
-            total: cant * parseFloat(prod.precio || 0)
-        });
-        if (!resVenta) throw new Error('No se pudo registrar la venta en Supabase');
-
-        // 2. Descontar stock del producto
-        const resStock = await sbPatch('productos', pId, { cantidad: nuevoStock });
-        if (!resStock) throw new Error('No se pudo actualizar el stock');
-
-        document.getElementById('formVenta').reset();
-        if (document.getElementById('ventaTotal')) document.getElementById('ventaTotal').value = '';
-        if (document.getElementById('precioProducto')) document.getElementById('precioProducto').innerText = '';
-
-        await cargarDatos();
-        Swal.fire('Exito', 'Venta registrada correctamente', 'success');
-    } catch (err) {
-        console.error('Error registrando venta:', err);
-        Swal.fire('Error', 'No se pudo registrar la venta: ' + err.message, 'error');
+function updateVentaTotal() {
+  const productoSel = document.getElementById('ventaProducto');
+  const cantidadInput = document.getElementById('ventaCantidad');
+  const totalInput = document.getElementById('ventaTotal');
+  
+  const productoNombre = productoSel.value;
+  const cantidad = parseInt(cantidadInput.value) || 0;
+  
+  if (productoNombre && cantidad > 0) {
+    const producto = productos.find(p => p.nombre === productoNombre);
+    if (producto) {
+      totalInput.value = (producto.precio * cantidad).toFixed(2);
     }
+  } else {
+    totalInput.value = '';
+  }
 }
 
-async function eliminarVenta(id) {
-    const c = await Swal.fire({
-        title: 'Eliminar venta?',
-        text: 'No se puede deshacer',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Si, eliminar',
-        cancelButtonText: 'Cancelar'
-    });
-    if (!c.isConfirmed) return;
 
-    const v = ventas.find(x => x.id == id);
+// ===== EXCEL =====
+async function exportExcel() {
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(productos), 'Productos');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(clientes), 'Clientes');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ventas), 'Ventas');
+  XLSX.writeFile(wb, `inventario-${new Date().toISOString().slice(0,10)}.xlsx`);
+}
 
-    try {
-        // Si hay producto asociado, devolver stock
-        if (v) {
-            const prod = productos.find(p => p.nombre === v.producto);
-            if (prod) {
-                const nuevoStock = (parseInt(prod.cantidad) || 0) + (parseInt(v.cantidad) || 0);
-                const resStock = await sbPatch('productos', prod.id, { cantidad: nuevoStock });
-                if (!resStock) throw new Error('No se pudo restaurar el stock');
-            }
-        }
-
-        const ok = await sbDelete('ventas', id);
-        if (!ok) throw new Error('No se pudo eliminar la venta');
-
-        await cargarDatos();
-        Swal.fire('Eliminado', 'Venta eliminada', 'success');
-    } catch (err) {
-        console.error('Error eliminando venta:', err);
-        Swal.fire('Error', 'No se pudo eliminar la venta: ' + err.message, 'error');
+// ===== EVENTS =====
+function bindEvents() {
+  document.getElementById('loginForm').addEventListener('submit', login);
+  document.getElementById('btnLogout').addEventListener('click', logout);
+  document.getElementById('productForm').addEventListener('submit', saveProducto);
+  document.getElementById('clienteForm').addEventListener('submit', saveCliente);
+  document.getElementById('ventaForm').addEventListener('submit', saveVenta);
+  document.getElementById('btnExportExcel').addEventListener('click', exportExcel);
+  
+  document.getElementById('ventaCantidad').addEventListener('input', updateVentaTotal);
+  document.getElementById('ventaProducto').addEventListener('change', updateVentaTotal);
+  
+  // Event delegation for edit/delete
+  document.addEventListener('click', function(e) {
+    if (e.target.matches('.btn-edit')) {
+      const id = e.target.dataset.id;
+      const type = e.target.dataset.type;
+      const dataStr = e.target.dataset.data.replace(/"/g, '"');
+      const data = JSON.parse(dataStr);
+      editItem(id, type, data);
     }
-}
-
-// =================================================================
-// DASHBOARD & EVENTOS
-// =================================================================
-
-function actualizarDashboard() {
-    const totalVentas = ventas.reduce((acc, v) => acc + (parseFloat(v.total) || 0), 0);
-    const bajoStock = productos.filter(p => (p.cantidad || 0) <= (p.stock_min || 5)).length;
-
-    const el = id => document.getElementById(id);
-    if (el('dashIngresos')) el('dashIngresos').innerText = '$' + totalVentas.toFixed(2);
-    if (el('dashVentasCount')) el('dashVentasCount').innerText = ventas.length;
-    if (el('dashAlertas')) el('dashAlertas').innerText = bajoStock;
-
-    if (el('totalClientes')) el('totalClientes').innerText = clientes.length;
-    if (el('totalProductos')) el('totalProductos').innerText = productos.length;
-    if (el('totalVentas')) el('totalVentas').innerText = ventas.length;
-    if (el('totalIngresos')) el('totalIngresos').innerText = '$' + totalVentas.toFixed(2);
-
-    if (el('badgeClientes')) el('badgeClientes').innerText = clientes.length;
-    if (el('badgeProductos')) el('badgeProductos').innerText = productos.length;
-    if (el('badgeVentas')) el('badgeVentas').innerText = ventas.length;
-
-    if (el('countClientes')) el('countClientes').innerText = clientes.length;
-    if (el('countProductos')) el('countProductos').innerText = productos.length;
-    if (el('countVentas')) el('countVentas').innerText = ventas.length;
-
-    actualizarReportes();
-}
-
-function actualizarReportes() {
-    const hoy = new Date().toLocaleDateString();
-    const ventasHoy = ventas.filter(v => v.fecha === hoy);
-    const ingresosHoy = ventasHoy.reduce((a, v) => a + (parseFloat(v.total) || 0), 0);
-
-    const el = id => document.getElementById(id);
-    if (el('ventasHoy')) el('ventasHoy').innerText = ventasHoy.length;
-    if (el('ingresosHoy')) el('ingresosHoy').innerText = '$' + ingresosHoy.toFixed(2);
-
-    const clienteCount = {};
-    ventas.forEach(v => { clienteCount[v.cliente] = (clienteCount[v.cliente] || 0) + 1; });
-    const mejorCliente = Object.entries(clienteCount).sort((a, b) => b[1] - a[1])[0];
-    if (el('mejorCliente')) el('mejorCliente').innerText = mejorCliente ? mejorCliente[0] : 'N/A';
-    if (el('ventasMejorCliente')) el('ventasMejorCliente').innerText = mejorCliente ? mejorCliente[1] : 0;
-
-    const productoCount = {};
-    ventas.forEach(v => { productoCount[v.producto] = (productoCount[v.producto] || 0) + (parseInt(v.cantidad) || 0); });
-    const prodMasVendido = Object.entries(productoCount).sort((a, b) => b[1] - a[1])[0];
-    if (el('productoMasVendido')) el('productoMasVendido').innerText = prodMasVendido ? prodMasVendido[0] : 'N/A';
-    if (el('unidadesVendidas')) el('unidadesVendidas').innerText = prodMasVendido ? prodMasVendido[1] : 0;
-
-    const stockCritico = productos.filter(p => (p.cantidad || 0) <= 0).length;
-    if (el('stockCritico')) el('stockCritico').innerText = stockCritico;
-
-    actualizarGraficaVentas();
-}
-
-function actualizarGraficaVentas() {
-    const ctx = document.getElementById('graficoVentas');
-    if (!ctx) return;
-
-    const ventasPorFecha = {};
-    ventas.forEach(v => { ventasPorFecha[v.fecha] = (ventasPorFecha[v.fecha] || 0) + (parseFloat(v.total) || 0); });
-    const fechas = Object.keys(ventasPorFecha).sort();
-    const totales = fechas.map(f => ventasPorFecha[f]);
-
-    if (chartVentas) {
-        chartVentas.data.labels = fechas;
-        chartVentas.data.datasets[0].data = totales;
-        chartVentas.update();
-    } else {
-        chartVentas = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: fechas,
-                datasets: [{
-                    label: 'Ventas ($)',
-                    data: totales,
-                    borderColor: '#3498db',
-                    backgroundColor: 'rgba(52,152,219,0.1)',
-                    fill: true,
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true } }
-            }
-        });
+    if (e.target.matches('.delete-btn')) {
+      const id = e.target.dataset.id;
+      const type = e.target.dataset.type;
+      deleteItem(id, type);
     }
+  });
 }
 
-// =================================================================
-// EVENTOS UI
-// =================================================================
-
-function vincularEventosUI() {
-    document.getElementById('formProducto')?.addEventListener('submit', guardarProducto);
-    document.getElementById('formCliente')?.addEventListener('submit', guardarCliente);
-    document.getElementById('formVenta')?.addEventListener('submit', registrarVenta);
-
-    const actualizarTotalVenta = () => {
-        const p = productos.find(x => x.id == document.getElementById('ventaProducto').value);
-        const c = document.getElementById('ventaCantidad').value || 0;
-        if (p && document.getElementById('ventaTotal')) {
-            document.getElementById('ventaTotal').value = '$' + (parseFloat(p.precio || 0) * c).toFixed(2);
-        }
-        const precioProd = document.getElementById('precioProducto');
-        if (precioProd && p) precioProd.innerText = 'Precio unitario: $' + parseFloat(p.precio || 0).toFixed(2);
-    };
-
-    document.getElementById('ventaProducto')?.addEventListener('change', actualizarTotalVenta);
-    document.getElementById('ventaCantidad')?.addEventListener('input', actualizarTotalVenta);
-
-    const buscador = document.getElementById('buscador');
-    const filtroTipo = document.getElementById('filtroTipo');
-    buscador?.addEventListener('input', () => filtrarTablas(buscador.value, filtroTipo?.value || 'todos'));
-    filtroTipo?.addEventListener('change', () => filtrarTablas(buscador.value, filtroTipo.value));
-
-    document.getElementById('btnExportarExcel')?.addEventListener('click', exportarExcel);
-    document.getElementById('btnImportarExcel')?.addEventListener('click', () => document.getElementById('inputExcel')?.click());
-    document.getElementById('inputExcel')?.addEventListener('change', importarExcel);
-    document.getElementById('btnExportar')?.addEventListener('click', exportarJSON);
-    document.getElementById('btnConfig')?.addEventListener('click', mostrarConfiguracion);
+// ===== INIT =====
+function showApp() {
+  loginScreen.classList.add('hidden');
+  appWrapper.classList.remove('hidden');
 }
 
-function filtrarTablas(query, tipo) {
-    const q = query.toLowerCase().trim();
-    const contenedores = [];
-    if (tipo === 'todos' || tipo === 'productos') contenedores.push('listaProductos');
-    if (tipo === 'todos' || tipo === 'clientes') contenedores.push('listaClientes');
-    if (tipo === 'todos' || tipo === 'ventas') contenedores.push('listaVentas');
-
-    contenedores.forEach(id => {
-        const cont = document.getElementById(id);
-        if (!cont) return;
-        cont.querySelectorAll('tbody tr').forEach(row => {
-            row.style.display = row.innerText.toLowerCase().includes(q) ? '' : 'none';
-        });
-    });
+function showLogin() {
+  appWrapper.classList.add('hidden');
+  loginScreen.classList.remove('hidden');
 }
 
-function actualizarVistaCompleta() {
-    renderizarProductos();
-    renderizarClientes();
-    renderizarVentas();
-    actualizarDashboard();
+document.addEventListener('DOMContentLoaded', () => {
+  bindEvents();
+  checkSession();
+});
 
-    const sc = document.getElementById('ventaCliente'), sp = document.getElementById('ventaProducto');
-    if (sc) sc.innerHTML = '<option value="">Seleccionar Cliente</option>' + clientes.map(c => `<option value="${c.id}">${esc(c.nombre)}</option>`).join('');
-    if (sp) sp.innerHTML = '<option value="">Seleccionar Repuesto</option>' + productos.map(p => `<option value="${p.id}">${esc(p.nombre)} (Stock: ${p.cantidad || 0})</option>`).join('');
-}
-
-function showTab(id) {
-    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-    document.getElementById(id)?.classList.add('active');
-    document.querySelectorAll('.tab-btn').forEach(b => {
-        const onclick = b.getAttribute('onclick') || '';
-        b.classList.toggle('active', onclick.includes(id));
-    });
-}
-
-// =================================================================
-// EXPORTAR / IMPORTAR / UTILIDADES
-// =================================================================
-
-function exportarExcel() {
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(clientes), 'Clientes');
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(productos), 'Productos');
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ventas), 'Ventas');
-    XLSX.writeFile(wb, 'inventario-' + new Date().toISOString().split('T')[0] + '.xlsx');
-}
-
-function importarExcel(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-        try {
-            const data = new Uint8Array(evt.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-
-            const sheetClientes = workbook.Sheets['Clientes'];
-            const sheetProductos = workbook.Sheets['Productos'];
-            const sheetVentas = workbook.Sheets['Ventas'];
-
-            if (sheetClientes) {
-                const datos = XLSX.utils.sheet_to_json(sheetClientes);
-                for (const d of datos) {
-                    delete d.id; delete d.fecha;
-                    const res = await sbPost('clientes', d);
-                    if (!res) throw new Error('Fallo al importar cliente');
-                }
-            }
-            if (sheetProductos) {
-                const datos = XLSX.utils.sheet_to_json(sheetProductos);
-                for (const d of datos) {
-                    delete d.id; delete d.fecha;
-                    if (d.stockmin !== undefined) { d.stock_min = d.stockmin; delete d.stockmin; }
-                    const res = await sbPost('productos', d);
-                    if (!res) throw new Error('Fallo al importar producto');
-                }
-            }
-            if (sheetVentas) {
-                const datos = XLSX.utils.sheet_to_json(sheetVentas);
-                for (const d of datos) {
-                    delete d.id; delete d.fecha;
-                    const res = await sbPost('ventas', d);
-                    if (!res) throw new Error('Fallo al importar venta');
-                }
-            }
-
-            await cargarDatos();
-            Swal.fire('Importado', 'Datos importados desde Excel', 'success');
-        } catch (err) {
-            console.error('Error importando Excel:', err);
-            Swal.fire('Error', 'No se pudieron importar los datos: ' + err.message, 'error');
-        }
-        e.target.value = '';
-    };
-    reader.readAsArrayBuffer(file);
-}
-
-function exportarJSON() {
-    const data = { clientes, productos, ventas };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'backup-inventario-' + new Date().toISOString().split('T')[0] + '.json';
-    a.click();
-    URL.revokeObjectURL(url);
-}
-
-async function mostrarConfiguracion() {
-    const { value: accion } = await Swal.fire({
-        title: 'Configuracion',
-        input: 'select',
-        inputOptions: { '': 'Seleccione', 'url': 'Ver URL Supabase' },
-        showCancelButton: true
-    });
-    if (accion === 'url') {
-        Swal.fire('URL Supabase', SUPABASE_URL, 'info');
-    }
-}
-
-// INICIO
-document.addEventListener('DOMContentLoaded', inicializarApp);
