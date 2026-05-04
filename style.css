@@ -32,14 +32,19 @@ body {
 
 /* LOGIN SOLID OVERLAY */
 #loginScreen {
+  background-color: #0f172a !important;
   position: fixed !important;
   inset: 0 !important;
-  background: rgba(0,0,0,0.95) !important;
+  z-index: 1000 !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  z-index: 9999 !important;
 }
+
+#appWrapper {
+  display: none !important;
+}
+
 
 #appWrapper { display: none !important; }
 

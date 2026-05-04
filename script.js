@@ -1,5 +1,26 @@
 /* Appwrite FIXED - Global IIFE v14 + Error Handling */
-const { Client, Account, Databases, ID } = Appwrite;
+// Esperar DOM + check window.Appwrite
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof window.Appwrite === 'undefined') {
+    console.error("Appwrite SDK bloqueado");
+    Swal.fire({
+      title: 'SDK Bloqueado',
+      text: 'Desactiva bloqueadores de anuncios',
+      icon: 'warning'
+    });
+    return;
+  }
+  
+  const client = new window.Appwrite.Client()
+    .setEndpoint('https://nyc.cloud.appwrite.io/v1')
+    .setProject('69f8b97e0005a97657e6');
+  
+  const account = new window.Appwrite.Account(client);
+  const databases = new window.Appwrite.Databases(client);
+  const ID = new window.Appwrite.ID(client);
+  
+  /* TÚ LÓGICA ORIGINAL DESDE AQUÍ ABAJO */
+
 
 // CONFIG
 const client = new Client()
