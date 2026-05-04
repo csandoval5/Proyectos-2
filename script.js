@@ -23,11 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 // CONFIG
-const client = new Client()
-  .setEndpoint('https://nyc.cloud.appwrite.io/v1')
-  .setProject('69f8b97e0005a97657e6');
-const account = new Account(client);
-const database = new Databases(client);
+// NO DUPLICAR - Ya definido arriba
+// const client = new Client()... REMOVIDO
 
 // SDK Check
 if (typeof Appwrite === 'undefined') {
